@@ -1,6 +1,6 @@
 # VideoSave – GitHub Actions iPhone Build
 
-VideoSave ist eine native SwiftUI-App für iPhone. Sie verarbeitet direkte Video-URLs, unverschlüsselte HLS-Master-Playlists und unterstützte öffentliche Pornhub-Video-Seiten (`view_video.php?viewkey=…`).
+VideoSave ist eine native SwiftUI-App für iPhone. Sie verarbeitet direkte Video-URLs, unverschlüsselte HLS-Master-Playlists und unterstützte öffentliche XxX-Video-Seiten.
 
 ## Enthalten
 
