@@ -1,0 +1,28 @@
+name: VideoSave
+options:
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: 5.9
+    TARGETED_DEVICE_FAMILY: "1"
+    PRODUCT_BUNDLE_IDENTIFIER: com.videosave.app
+    INFOPLIST_FILE: Sources/Info.plist
+targets:
+  VideoSave:
+    type: application
+    platform: iOS
+    sources:
+      - Sources
+      - Models
+    settings:
+      base:
+        PRODUCT_NAME: VideoSave
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGNING_ALLOWED: NO
+        CODE_SIGNING_REQUIRED: NO
+        DEVELOPMENT_TEAM: ""
+        SWIFT_EMIT_LOC_STRINGS: YES
+    info:
+      path: Sources/Info.plist
