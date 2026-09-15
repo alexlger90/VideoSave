@@ -22,39 +22,73 @@ struct ContentView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Video-URL")
                             .font(.headline)
-                        TextField("https://example.com/video.mp4", text: $urlText)
-                            .textInputAutocapitalization(.never)
-                            .autocorrectionDisabled()
-                            .keyboardType(.URL)
-                            .textFieldStyle(.roundedBorder)
+
+                        TextField(
+                            "https://example.com/video.mp4",
+                            text: $urlText
+                        )
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .keyboardType(.URL)
+                        .textFieldStyle(.roundedBorder)
+
                         Button {
-                            Task { await checkURL() }
+                            Task {
+                                await checkURL()
+                            }
                         } label: {
-                            Label(isChecking ? "Prüfe…" : "Qualitäten prüfen", systemImage: "list.bullet.rectangle")
-                                .frame(maxWidth: .infinity)
+                            Label(
+                                isChecking ? "Prüfe…" : "Qualitäten prüfen",
+                                systemImage: "list.bullet.rectangle"
+                            )
+                            .frame(maxWidth: .infinity)
                         }
                         .buttonStyle(.bordered)
-                        .disabled(urlText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isChecking || manager.isBusy)
+                        .disabled(
+                            urlText
+                                .trimmingCharacters(in: .whitespacesAndNewlines)
+                                .isEmpty
+                            || isChecking
+                            || manager.isBusy
+                        )
                     }
 
                     if !variants.isEmpty {
                         VStack(alignment: .leading, spacing: 8) {
                             Text("Qualität")
                                 .font(.headline)
+
                             Picker("Qualität", selection: $selectedQuality) {
-                                ForEach(availableQualityNames, id: \.self) { Text($0).tag($0) }
+                                ForEach(
+                                    availableQualityNames,
+                                    id: \.self
+                                ) {
+                                    Text($0).tag($0)
+                                }
                             }
                             .pickerStyle(.menu)
-                            Text("HLS-Qualitäten werden nur angezeigt, wenn der direkte Link eine Master-Playlist enthält.")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+
+                            Text(
+                                "HLS-Qualitäten werden nur angezeigt, wenn der direkte Link eine Master-Playlist enthält."
+                            )
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                         }
                     } else {
                         VStack(alignment: .leading, spacing: 8) {
                             Text("Qualität")
                                 .font(.headline)
-                            Picker("Qualität", selection: $selectedQuality) {
-                                ForEach(qualities, id: \.self) { Text($0).tag($0) }
+
+                            Picker(
+                                "Qualität",
+                                selection: $selectedQuality
+                            ) {
+                                ForEach(
+                                    qualities,
+                                    id: \.self
+                                ) {
+                                    Text($0).tag($0)
+                                }
                             }
                             .pickerStyle(.menu)
                         }
@@ -63,14 +97,24 @@ struct ContentView: View {
                     VStack(alignment: .leading, spacing: 12) {
                         Text("Ausgabe")
                             .font(.headline)
-                        Picker("Format", selection: $selectedFormat) {
-                            ForEach(formats, id: \.self) { Text($0).tag($0) }
+
+                        Picker(
+                            "Format",
+                            selection: $selectedFormat
+                        ) {
+                            ForEach(
+                                formats,
+                                id: \.self
+                            ) {
+                                Text($0).tag($0)
+                            }
                         }
                         .pickerStyle(.segmented)
 
                         Toggle(isOn: $aiUpscale) {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text("AI-Upscaling")
+
                                 Text("2× → 4K UHD bei 1080p-Quelle")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
@@ -81,6 +125,7 @@ struct ContentView: View {
                     if manager.isBusy {
                         VStack(spacing: 8) {
                             ProgressView(value: manager.progress)
+
                             Text(manager.status)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
@@ -88,7 +133,10 @@ struct ContentView: View {
                     } else if !manager.status.isEmpty {
                         Text(manager.status)
                             .font(.callout)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .frame(
+                                maxWidth: .infinity,
+                                alignment: .leading
+                            )
                     }
 
                     Button {
@@ -102,29 +150,49 @@ struct ContentView: View {
                             )
                         }
                     } label: {
-                        Label("Video speichern", systemImage: "arrow.down.circle.fill")
-                            .font(.headline)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 6)
+                        Label(
+                            "Video speichern",
+                            systemImage: "arrow.down.circle.fill"
+                        )
+                        .font(.headline)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 6)
                     }
                     .buttonStyle(.borderedProminent)
-                    .disabled(urlText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || manager.isBusy)
+                    .disabled(
+                        urlText
+                            .trimmingCharacters(
+                                in: .whitespacesAndNewlines
+                            )
+                            .isEmpty
+                        || manager.isBusy
+                    )
 
-                    if let outputURL = manager.outputURL, !manager.isBusy {
+                    if let outputURL = manager.outputURL,
+                       !manager.isBusy {
+
                         VStack(spacing: 10) {
                             Button {
                                 manager.presentFileExporter = true
                             } label: {
-                                Label("In Dateien exportieren", systemImage: "folder")
-                                    .frame(maxWidth: .infinity)
+                                Label(
+                                    "In Dateien exportieren",
+                                    systemImage: "folder"
+                                )
+                                .frame(maxWidth: .infinity)
                             }
                             .buttonStyle(.bordered)
 
                             Button {
-                                Task { await manager.saveToPhotos() }
+                                Task {
+                                    await manager.saveToPhotos()
+                                }
                             } label: {
-                                Label("In Fotos speichern", systemImage: "photo")
-                                    .frame(maxWidth: .infinity)
+                                Label(
+                                    "In Fotos speichern",
+                                    systemImage: "photo"
+                                )
+                                .frame(maxWidth: .infinity)
                             }
                             .buttonStyle(.bordered)
 
@@ -141,12 +209,21 @@ struct ContentView: View {
             .fileExporter(
                 isPresented: $manager.presentFileExporter,
                 document: manager.exportDocument,
-                contentType: selectedFormat == "MOV" ? .quickTimeMovie : .mpeg4Movie,
-                defaultFilename: manager.outputURL?.deletingPathExtension().lastPathComponent ?? "VideoSave"
+                contentType: selectedFormat == "MOV"
+                    ? .quickTimeMovie
+                    : .mpeg4Movie,
+                defaultFilename:
+                    manager.outputURL?
+                        .deletingPathExtension()
+                        .lastPathComponent
+                    ?? "VideoSave"
             ) { result in
                 manager.handleExportResult(result)
             }
-            .alert("VideoSave", isPresented: $manager.showError) {
+            .alert(
+                "VideoSave",
+                isPresented: $manager.showError
+            ) {
                 Button("OK", role: .cancel) { }
             } message: {
                 Text(manager.errorMessage)
@@ -156,27 +233,49 @@ struct ContentView: View {
 
     private var availableQualityNames: [String] {
         var result = ["Original"]
+
         result += variants.compactMap { variant in
             let p = variant.height
-            guard p > 0 else { return nil }
+
+            guard p > 0 else {
+                return nil
+            }
+
             return "\(p)p"
         }
-        return Array(NSOrderedSet(array: result)) as? [String] ?? result
+
+        return Array(
+            NSOrderedSet(array: result)
+        ) as? [String] ?? result
     }
 
     private func checkURL() async {
         isChecking = true
-        defer { isChecking = false }
+        defer {
+            isChecking = false
+        }
+
         do {
-            let parsed = try await manager.inspect(urlString: urlText)
+            let parsed = try await manager.inspect(
+                urlString: urlText
+            )
+
             variants = parsed
-            if let best = parsed.first?.height, selectedQuality == "Original" == false {
+
+            if let best = parsed.first?.height,
+               selectedQuality != "Original" {
                 _ = best
             }
-            manager.status = parsed.isEmpty ? "Direkter Medienlink erkannt." : "\(parsed.count) HLS-Qualitäten gefunden."
+
+            manager.status = parsed.isEmpty
+                ? "Direkter Medienlink erkannt."
+                : "\(parsed.count) HLS-Qualitäten gefunden."
+
         } catch {
             variants = []
-            manager.status = "Direkter Link: Qualität wird vom Server bestimmt."
+
+            manager.status =
+                "Direkter Link: Qualität wird vom Server bestimmt."
         }
     }
 }
