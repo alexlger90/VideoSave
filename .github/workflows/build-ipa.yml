@@ -1,0 +1,50 @@
+name: Build VideoSave IPA
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-14
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Download Real-ESRGAN x2plus CoreML model
+        run: |
+          mkdir -p Models
+          curl -L \
+            -o /tmp/realesrgan.zip \
+            https://github.com/hanxiao/real-esrgan-coreml/releases/download/v1.0.0/RealESRGAN_x2plus_522_fp16.zip
+          unzip -o /tmp/realesrgan.zip -d Models
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Build unsigned iPhone app
+        run: |
+          xcodebuild \
+            -project VideoSave.xcodeproj \
+            -scheme VideoSave \
+            -sdk iphoneos \
+            -configuration Release \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY=""
+
+      - name: Create unsigned IPA
+        run: |
+          mkdir -p Payload
+          cp -R build/Build/Products/Release-iphoneos/VideoSave.app Payload/
+          zip -r VideoSave-unsigned.ipa Payload
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: VideoSave-IPA
+          path: VideoSave-unsigned.ipa
