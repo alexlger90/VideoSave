@@ -79,6 +79,17 @@ final class DownloadManager: NSObject, ObservableObject {
             throw VideoSaveError.invalidURL
         }
 
+        if PornhubResolver.isPornhubPage(url) {
+            status = "Pornhub-Video wird aufgelöst…"
+            let resolved = try await PornhubResolver.resolve(url)
+            return resolved.variants.sorted {
+                if $0.height != $1.height {
+                    return $0.height > $1.height
+                }
+                return $0.bandwidth > $1.bandwidth
+            }
+        }
+
         var request = URLRequest(url: url)
         request.setValue("*/*", forHTTPHeaderField: "Accept")
 
@@ -105,7 +116,10 @@ final class DownloadManager: NSObject, ObservableObject {
         )
 
         return parsed.sorted {
-            $0.height > $1.height
+            if $0.height != $1.height {
+                return $0.height > $1.height
+            }
+            return $0.bandwidth > $1.bandwidth
         }
     }
 
@@ -134,22 +148,37 @@ final class DownloadManager: NSObject, ObservableObject {
                 throw VideoSaveError.invalidURL
             }
 
+            var effectiveOriginal = original
+            var effectiveVariants = variants
+            var requestHeaders: [String: String] = [:]
+
+            if PornhubResolver.isPornhubPage(original) {
+                status = "Videoquelle wird aufgelöst…"
+                let resolved = try await PornhubResolver.resolve(original)
+
+                effectiveOriginal = resolved.defaultURL
+                effectiveVariants = resolved.variants
+                requestHeaders = resolved.requestHeaders
+            }
+
             let selectedURL = selectURL(
-                original: original,
+                original: effectiveOriginal,
                 quality: quality,
-                variants: variants
+                variants: effectiveVariants
             )
 
             if selectedURL.pathExtension.lowercased() == "m3u8" {
                 status = "HLS-Stream wird geprüft…"
 
                 try await rejectProtectedHLSIfNeeded(
-                    url: selectedURL
+                    url: selectedURL,
+                    headers: requestHeaders
                 )
 
                 let temp = try await exportHLS(
                     url: selectedURL,
-                    format: format
+                    format: format,
+                    headers: requestHeaders
                 )
 
                 try await finishVideo(
@@ -161,7 +190,8 @@ final class DownloadManager: NSObject, ObservableObject {
                 status = "Video wird heruntergeladen…"
 
                 let temp = try await downloadDirect(
-                    url: selectedURL
+                    url: selectedURL,
+                    headers: requestHeaders
                 )
 
                 try await finishVideo(
@@ -210,7 +240,10 @@ final class DownloadManager: NSObject, ObservableObject {
         }?.url ?? original
     }
 
-    private func downloadDirect(url: URL) async throws -> URL {
+    private func downloadDirect(
+        url: URL,
+        headers: [String: String]
+    ) async throws -> URL {
         sourceURL = url
 
         return try await withCheckedThrowingContinuation {
@@ -218,17 +251,31 @@ final class DownloadManager: NSObject, ObservableObject {
 
             downloadContinuation = continuation
 
+            var request = URLRequest(url: url)
+            for (field, value) in headers {
+                request.setValue(value, forHTTPHeaderField: field)
+            }
+
             downloadSession
-                .downloadTask(with: url)
+                .downloadTask(with: request)
                 .resume()
         }
     }
 
     private func exportHLS(
         url: URL,
-        format: String
+        format: String,
+        headers: [String: String]
     ) async throws -> URL {
-        let asset = AVURLAsset(url: url)
+        var options: [String: Any] = [:]
+        if !headers.isEmpty {
+            options[AVURLAssetHTTPHeaderFieldsKey] = headers
+        }
+
+        let asset = AVURLAsset(
+            url: url,
+            options: options.isEmpty ? nil : options
+        )
 
         let tracks = try await asset.load(.tracks)
 
@@ -273,11 +320,17 @@ final class DownloadManager: NSObject, ObservableObject {
     }
 
     private func rejectProtectedHLSIfNeeded(
-        url: URL
+        url: URL,
+        headers: [String: String]
     ) async throws {
+        var request = URLRequest(url: url)
+        for (field, value) in headers {
+            request.setValue(value, forHTTPHeaderField: field)
+        }
+
         let (data, response) =
             try await URLSession.shared.data(
-                from: url
+                for: request
             )
 
         guard
@@ -542,6 +595,10 @@ extension DownloadManager:
 enum VideoSaveError: LocalizedError {
     case invalidURL
     case httpError
+    case unsupportedPage
+    case mediaNotFound
+    case accessBlocked
+    case captchaRequired
     case noVideoTrack
     case exportUnavailable
     case exportFailed
@@ -556,6 +613,18 @@ enum VideoSaveError: LocalizedError {
 
         case .httpError:
             return "Der Server konnte die Videoquelle nicht öffnen."
+
+        case .unsupportedPage:
+            return "Diese Seite wird nicht als unterstützte Videoquelle erkannt."
+
+        case .mediaNotFound:
+            return "Auf der öffentlich zugänglichen Seite wurde keine direkt verfügbare Videoquelle gefunden."
+
+        case .accessBlocked:
+            return "Der Server hat den Zugriff auf die Seite blockiert (z. B. HTTP 403/429). VideoSave umgeht keine Zugriffssperren."
+
+        case .captchaRequired:
+            return "Die Seite verlangt eine CAPTCHA-/Mensch-Überprüfung. VideoSave umgeht diese Überprüfung nicht."
 
         case .noVideoTrack:
             return "Die Quelle enthält keine Videospur."

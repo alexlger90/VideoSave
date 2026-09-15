@@ -24,7 +24,7 @@ struct ContentView: View {
                             .font(.headline)
 
                         TextField(
-                            "https://example.com/video.mp4",
+                            "https://www.pornhub.com/view_video.php?viewkey=…",
                             text: $urlText
                         )
                         .textInputAutocapitalization(.never)
@@ -69,7 +69,7 @@ struct ContentView: View {
                             .pickerStyle(.menu)
 
                             Text(
-                                "HLS-Qualitäten werden nur angezeigt, wenn der direkte Link eine Master-Playlist enthält."
+                                "Bei unterstützten Seiten werden die vom Server angebotenen Videoqualitäten angezeigt."
                             )
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -273,9 +273,8 @@ struct ContentView: View {
 
         } catch {
             variants = []
-
-            manager.status =
-                "Direkter Link: Qualität wird vom Server bestimmt."
+            selectedQuality = "Original"
+            manager.status = error.localizedDescription
         }
     }
 }
