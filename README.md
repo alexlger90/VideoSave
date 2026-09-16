@@ -9,7 +9,7 @@ Native SwiftUI-App für iPhone zum Speichern öffentlich erreichbarer Videoquell
 Die IPA ist bereits fertig gebaut. Du musst **nichts mit Xcode bauen, nichts entpacken und keinen GitHub-Artifact herunterladen**. Für die Installation brauchst du nur **Sideloadly**:
 
 1. `VideoSave.ipa` über den Link oben herunterladen.
-2. Sideloadly öffnen und das iPhone verbinden.
+2. Sideloadly öffnen und das iPhone verbinden (https://sideloadly.io/)
 3. `VideoSave.ipa` in Sideloadly auswählen bzw. hineinziehen.
 4. Den eigenen Apple-Account für die Signierung verwenden.
 5. **Remove Extensions deaktiviert lassen**, damit die VideoSave-Share-Extension mit installiert wird.
