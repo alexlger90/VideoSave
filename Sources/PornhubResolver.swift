@@ -57,7 +57,11 @@ enum PornhubResolver {
         guard let playlist = String(data: playlistData, encoding: .utf8) else { throw VideoSaveError.mediaNotFound }
         try MediaAccessPolicy.validatePlaylist(playlist)
         let variants = try HLSParser.parseMasterPlaylist(text: playlist, baseURL: playlistResponse.url ?? hls.url).sorted { $0.height != $1.height ? $0.height > $1.height : $0.bandwidth > $1.bandwidth }
-        return PornhubResolution(pageURL: pageURL, defaultURL: hls.url, variants: variants.isEmpty ? [HLSVariant(url: hls.url, width: 0, height: hls.quality, bandwidth: hls.bandwidth)] : variants, requestHeaders: mediaHeaders)
+        let playableVariants = variants.isEmpty ? [HLSVariant(url: hls.url, width: 0, height: hls.quality, bandwidth: hls.bandwidth)] : variants
+        // A master playlist itself may not expose a video track to AVFoundation.
+        // For "Original", use the highest concrete variant when one exists.
+        let playableDefault = variants.first?.url ?? hls.url
+        return PornhubResolution(pageURL: pageURL, defaultURL: playableDefault, variants: playableVariants, requestHeaders: mediaHeaders)
     }
 
     private static func requestData(url: URL, headers: [String:String], session: URLSession) async throws -> (Data, URLResponse) {
