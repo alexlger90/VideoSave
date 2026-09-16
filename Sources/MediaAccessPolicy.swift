@@ -78,6 +78,31 @@ enum MediaAccessPolicy {
         }
     }
 
+    static func validateDownloadedMedia(response: URLResponse, fileURL: URL) throws {
+        let mimeType = response.mimeType?.lowercased() ?? ""
+        let textualMime = mimeType == "text/html" ||
+            mimeType == "application/xhtml+xml" ||
+            mimeType.hasPrefix("text/")
+
+        let handle = try FileHandle(forReadingFrom: fileURL)
+        defer { try? handle.close() }
+        let prefixData = try handle.read(upToCount: 64 * 1024) ?? Data()
+        let prefix = String(data: prefixData, encoding: .utf8) ?? ""
+        let trimmed = prefix.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let looksLikeHTML = textualMime ||
+            trimmed.hasPrefix("<!doctype html") ||
+            trimmed.hasPrefix("<html") ||
+            trimmed.hasPrefix("<head") ||
+            trimmed.hasPrefix("<body")
+
+        guard looksLikeHTML else { return }
+
+        // A CDN can answer a media URL with an HTML challenge/error page. Detect
+        // that here so AVFoundation never receives HTML as if it were an MP4.
+        try validatePage(prefix, finalURL: response.url)
+        throw VideoSaveError.mediaNotFound
+    }
+
     static func validatePlaylist(_ text: String) throws {
         guard text.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("#EXTM3U") else {
             throw VideoSaveError.mediaNotFound
