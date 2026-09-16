@@ -48,7 +48,7 @@ enum PornhubResolver {
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
             "Referer": "https://www.pornhub.com/",
             "Accept-Language": "en-US,en;q=0.8",
-            "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1"
+            "User-Agent": VideoSaveBrowserUserAgent
         ]
 
         let (data, response) = try await requestData(url: pageURL, headers: pageHeaders, session: networkSession)
@@ -67,7 +67,7 @@ enum PornhubResolver {
         let mediaHeaders = [
             "Referer": pageURL.absoluteString,
             "Accept": "*/*",
-            "User-Agent": pageHeaders["User-Agent"]!
+            "User-Agent": VideoSaveBrowserUserAgent
         ]
 
         if let hls = hlsCandidates.first {
