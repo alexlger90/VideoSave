@@ -21,10 +21,11 @@ enum MediaAccessPolicy {
         let path = finalURL?.path.lowercased() ?? ""
         let query = finalURL?.query?.lowercased() ?? ""
 
-        // Normal video pages may preload CAPTCHA/Cloudflare JavaScript. Passive
-        // script references alone therefore do not count. We stop only for visible
-        // challenge wording, an actual challenge URL, or markup for an active
-        // challenge widget/form. Detection never solves or bypasses the challenge.
+        // Normal video pages may preload CAPTCHA/Cloudflare JavaScript or even an
+        // invisible widget. Those background assets must not block a playable page.
+        // We stop for visible challenge wording, a real challenge URL, or active
+        // challenge markup on a response that has no concrete media reference.
+        // Detection never solves or bypasses the challenge.
         let explicitChallengeText = [
             "verify you are human",
             "verify that you are human",
@@ -56,9 +57,18 @@ enum MediaAccessPolicy {
             "/cdn-cgi/challenge-platform/"
         ].contains(where: lowerHTML.contains)
 
+        let hasMediaContainer = [
+            "qualityitems_",
+            "\"videourl\"",
+            "\"mediadefinitions\""
+        ].contains(where: lowerHTML.contains)
+        let hasMediaExtension = [".mp4", ".m3u8", ".m4v", ".mov"]
+            .contains(where: lowerHTML.contains)
+        let hasConcreteMediaReference = hasMediaContainer && hasMediaExtension
+
         if challengeURL ||
-            activeChallengeMarkup ||
-            explicitChallengeText.contains(where: visible.contains) {
+            explicitChallengeText.contains(where: visible.contains) ||
+            (activeChallengeMarkup && !hasConcreteMediaReference) {
             throw VideoSaveError.captchaRequired
         }
 
