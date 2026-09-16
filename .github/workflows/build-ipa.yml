@@ -21,6 +21,61 @@ jobs:
       DEVELOPER_DIR: /Applications/Xcode_16.4.app/Contents/Developer
 
     steps:
+      - name: Remove older workflow runs
+        if: github.event_name != 'pull_request'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          CURRENT_RUN_ID: ${{ github.run_id }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import urllib.request
+          import urllib.error
+
+          token = os.environ["GITHUB_TOKEN"]
+          repository = os.environ["REPOSITORY"]
+          current_run = int(os.environ["CURRENT_RUN_ID"])
+          headers = {
+              "Authorization": f"Bearer {token}",
+              "Accept": "application/vnd.github+json",
+              "X-GitHub-Api-Version": "2022-11-28",
+          }
+
+          old_run_ids = []
+          page = 1
+          while True:
+              url = f"https://api.github.com/repos/{repository}/actions/runs?per_page=100&page={page}"
+              request = urllib.request.Request(url, headers=headers)
+              with urllib.request.urlopen(request) as response:
+                  payload = json.load(response)
+
+              runs = payload.get("workflow_runs", [])
+              for run in runs:
+                  run_id = run.get("id")
+                  if run_id != current_run and run.get("status") == "completed":
+                      old_run_ids.append(run_id)
+
+              if len(runs) < 100:
+                  break
+              page += 1
+
+          deleted = 0
+          for run_id in old_run_ids:
+              url = f"https://api.github.com/repos/{repository}/actions/runs/{run_id}"
+              request = urllib.request.Request(url, headers=headers, method="DELETE")
+              try:
+                  with urllib.request.urlopen(request) as response:
+                      response.read()
+                  deleted += 1
+              except urllib.error.HTTPError as error:
+                  if error.code != 404:
+                      raise
+
+          print(f"Removed {deleted} older workflow run(s).")
+          PY
+
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -85,58 +140,3 @@ jobs:
           name: VideoSave-IPA
           path: VideoSave-unsigned.ipa
           retention-days: 30
-
-      - name: Remove older workflow runs
-        if: success() && github.event_name != 'pull_request'
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-          REPOSITORY: ${{ github.repository }}
-          CURRENT_RUN_ID: ${{ github.run_id }}
-        run: |
-          python3 - <<'PY'
-          import json
-          import os
-          import urllib.request
-          import urllib.error
-
-          token = os.environ["GITHUB_TOKEN"]
-          repository = os.environ["REPOSITORY"]
-          current_run = int(os.environ["CURRENT_RUN_ID"])
-          headers = {
-              "Authorization": f"Bearer {token}",
-              "Accept": "application/vnd.github+json",
-              "X-GitHub-Api-Version": "2022-11-28",
-          }
-
-          old_run_ids = []
-          page = 1
-          while True:
-              url = f"https://api.github.com/repos/{repository}/actions/runs?per_page=100&page={page}"
-              request = urllib.request.Request(url, headers=headers)
-              with urllib.request.urlopen(request) as response:
-                  payload = json.load(response)
-
-              runs = payload.get("workflow_runs", [])
-              for run in runs:
-                  run_id = run.get("id")
-                  if run_id != current_run and run.get("status") == "completed":
-                      old_run_ids.append(run_id)
-
-              if len(runs) < 100:
-                  break
-              page += 1
-
-          deleted = 0
-          for run_id in old_run_ids:
-              url = f"https://api.github.com/repos/{repository}/actions/runs/{run_id}"
-              request = urllib.request.Request(url, headers=headers, method="DELETE")
-              try:
-                  with urllib.request.urlopen(request) as response:
-                      response.read()
-                  deleted += 1
-              except urllib.error.HTTPError as error:
-                  if error.code != 404:
-                      raise
-
-          print(f"Removed {deleted} older workflow run(s).")
-          PY
