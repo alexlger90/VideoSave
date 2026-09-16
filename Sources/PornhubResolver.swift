@@ -64,14 +64,11 @@ enum PornhubResolver {
         }
         let hlsCandidates = sorted.filter { $0.url.pathExtension.lowercased() == "m3u8" }
         let directCandidates = sorted.filter { $0.url.pathExtension.lowercased() != "m3u8" }
-        var mediaHeaders = [
+        let mediaHeaders = [
             "Referer": pageURL.absoluteString,
             "Accept": "*/*",
             "User-Agent": pageHeaders["User-Agent"]!
         ]
-        if let cookie = cookieHeader(for: pageURL) {
-            mediaHeaders["Cookie"] = cookie
-        }
 
         if let hls = hlsCandidates.first {
             let (playlistData, playlistResponse) = try await requestData(url: hls.url, headers: mediaHeaders, session: networkSession)
@@ -105,12 +102,6 @@ enum PornhubResolver {
         request.httpMethod = "GET"
         for (field, value) in headers { request.setValue(value, forHTTPHeaderField: field) }
         return try await session.data(for: request)
-    }
-
-    private static func cookieHeader(for url: URL) -> String? {
-        let cookies = HTTPCookieStorage.shared.cookies(for: url) ?? []
-        guard !cookies.isEmpty else { return nil }
-        return HTTPCookie.requestHeaderFields(with: cookies)["Cookie"]
     }
 
     private static func extractCandidates(from html: String, baseURL: URL) -> [MediaCandidate] {
