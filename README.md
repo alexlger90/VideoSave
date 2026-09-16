@@ -17,7 +17,7 @@ VideoSave verwendet nur Medienquellen, die eine öffentlich erreichbare Seite se
 
 ## Unterstützte Seiten
 
-`PornhubResolver` behandelt Pornhub gezielt. `GenericTubeResolver` erkennt zusätzlich die im Projekt hinterlegten 113 Domains und versucht dort öffentlich eingebettete MP4-/M4V-/MOV- oder HLS-Quellen zu verwenden. Da externe Seiten ihr Markup und ihre Player jederzeit ändern können, ist die Unterstützung best effort und wird durch die Quellen-Diagnose nachvollziehbar gemacht.
+Resolver` erkennt zusätzlich die im Projekt hinterlegten 113 Domains und versucht dort öffentlich eingebettete MP4-/M4V-/MOV- oder HLS-Quellen zu verwenden. Da externe Seiten ihr Markup und ihre Player jederzeit ändern können, ist die Unterstützung best effort und wird durch die Quellen-Diagnose nachvollziehbar gemacht.
 
 Die aktuelle Domainliste liegt in `Sources/GenericTubeResolver.swift`.
 
