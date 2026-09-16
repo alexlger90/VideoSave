@@ -15,6 +15,7 @@ struct ContentView: View {
     @State private var aiUpscale = false
     @State private var variants: [HLSVariant] = []
     @State private var isChecking = false
+    @State private var captchaURL: URL?
     @FocusState private var linkFocused: Bool
 
     private var controlsLocked: Bool { isChecking || manager.isBusy }
@@ -33,7 +34,7 @@ struct ContentView: View {
                     if let outputURL = manager.outputURL, !manager.isBusy {
                         exportCard(outputURL)
                     }
-                    Label("Direkte Auflösung · ohne In-App-Browser", systemImage: "link")
+                    Label("Direkte Auflösung · ohne In-App-Browser · CAPTCHA nur manuell", systemImage: "link")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity)
@@ -57,6 +58,20 @@ struct ContentView: View {
             } message: {
                 Text(manager.errorMessage)
             }
+            .sheet(
+                isPresented: Binding(
+                    get: { captchaURL != nil },
+                    set: { if !$0 { captchaURL = nil } }
+                )
+            ) {
+                if let captchaURL {
+                    CaptchaChallengeView(url: captchaURL) {
+                        self.captchaURL = nil
+                        manager.status = "CAPTCHA bestätigt. Quelle wird erneut geprüft…"
+                        Task { _ = await checkURL() }
+                    }
+                }
+            }
             .onChange(of: urlText) { _, _ in
                 variants = []
                 selectedQuality = "Original"
@@ -65,6 +80,9 @@ struct ContentView: View {
         }
         .tint(GarageStyle.accent)
         .preferredColorScheme(.dark)
+        .onOpenURL { incomingURL in
+            handleIncomingURL(incomingURL)
+        }
     }
 
     private var header: some View {
@@ -170,7 +188,7 @@ struct ContentView: View {
             .accessibilityLabel("Videolink aus der Zwischenablage einsetzen")
             Button {
                 linkFocused = false
-                Task { await checkURL() }
+                Task { _ = await checkURL() }
             } label: {
                 HStack {
                     if isChecking { ProgressView().tint(.white) }
@@ -180,7 +198,7 @@ struct ContentView: View {
             }
             .buttonStyle(.bordered)
             .disabled(linkIsEmpty || controlsLocked)
-            Text("Pornhub-Videolinks und direkte MP4-/HLS-Quellen werden in der App verarbeitet.")
+            Text("Pornhub-Videolinks und direkte MP4-/HLS-Quellen werden in der App verarbeitet. Eine echte CAPTCHA-Seite öffnet VideoSave nur zur manuellen Bestätigung.")
                 .font(.footnote).foregroundStyle(.secondary)
         }
         .garageCard()
@@ -239,6 +257,7 @@ struct ContentView: View {
         Button {
             linkFocused = false
             Task {
+                guard await prepareForSave() else { return }
                 await manager.download(urlString: urlText, quality: selectedQuality, variants: variants,
                                        format: selectedFormat, upscale2x: aiUpscale)
             }
@@ -286,7 +305,7 @@ struct ContentView: View {
         ["Original"] + Array(Set(variants.map(\.height).filter { $0 > 0 })).sorted(by: >).map { "\($0)p" }
     }
 
-    @MainActor private func checkURL() async {
+    @MainActor private func checkURL() async -> Bool {
         isChecking = true
         variants = []
         selectedQuality = "Original"
@@ -294,9 +313,34 @@ struct ContentView: View {
         do {
             variants = try await manager.inspect(urlString: urlText)
             manager.status = variants.isEmpty ? "Direkter Medienlink erkannt." : "Videoquelle bereit. Wähle dein Setup."
+            return true
+        } catch VideoSaveError.captchaRequired {
+            manager.status = "CAPTCHA erkannt. Bitte die Prüfung manuell bestätigen."
+            captchaURL = SharedLink.url(from: urlText)
+            return false
         } catch {
             manager.status = error.localizedDescription
+            return false
         }
+    }
+
+    @MainActor private func prepareForSave() async -> Bool {
+        guard let source = SharedLink.url(from: urlText) else {
+            manager.status = VideoSaveError.invalidURL.localizedDescription
+            return false
+        }
+        if PornhubResolver.isPornhubPage(source) {
+            return await checkURL()
+        }
+        return true
+    }
+
+    @MainActor private func handleIncomingURL(_ incomingURL: URL) {
+        guard let sharedURL = SharedLink.importedURL(from: incomingURL) else { return }
+        urlText = sharedURL.absoluteString
+        linkFocused = false
+        manager.status = "Link aus dem Teilen-Menü übernommen."
+        Task { _ = await checkURL() }
     }
 }
 
