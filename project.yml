@@ -19,7 +19,11 @@ targets:
     platform: iOS
     sources:
       - Sources
+      - Shared
       - Models
+    dependencies:
+      - target: VideoSaveShare
+        embed: true
     settings:
       base:
         PRODUCT_NAME: VideoSave
@@ -30,6 +34,23 @@ targets:
         SWIFT_EMIT_LOC_STRINGS: YES
     info:
       path: Sources/Info.plist
+
+  VideoSaveShare:
+    type: app-extension
+    platform: iOS
+    sources:
+      - ShareExtension
+      - Shared
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.videosave.app.share
+        INFOPLIST_FILE: ShareExtension/Info.plist
+        APPLICATION_EXTENSION_API_ONLY: YES
+        SKIP_INSTALL: YES
+        CODE_SIGNING_ALLOWED: NO
+        CODE_SIGNING_REQUIRED: NO
+    info:
+      path: ShareExtension/Info.plist
 
   VideoSaveTests:
     type: bundle.unit-test

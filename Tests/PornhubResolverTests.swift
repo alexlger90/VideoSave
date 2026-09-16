@@ -72,6 +72,14 @@ final class PornhubResolverTests: XCTestCase {
         XCTAssertEqual(VideoUpscaler.targetSize(for: CGSize(width: 1440, height: 1080)), CGSize(width: 2880, height: 2160))
     }
 
+    func testSharedBrowserLinksAndText() {
+        XCTAssertEqual(SharedLink.url(from: "https://www.pornhub.com/view_video.php?viewkey=test")?.host, "www.pornhub.com")
+        XCTAssertEqual(SharedLink.url(from: "Mein Video https://cdn.example/video.mp4 ansehen")?.path, "/video.mp4")
+        XCTAssertNil(SharedLink.url(from: "file:///private/video.mp4"))
+        XCTAssertNil(SharedLink.url(from: "javascript:alert(1)"))
+        XCTAssertNil(SharedLink.url(from: "Kein Link"))
+    }
+
     private func makeSession(body: String) -> URLSession {
         FixtureProtocol.body = body
         let configuration = URLSessionConfiguration.ephemeral

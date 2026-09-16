@@ -65,6 +65,8 @@ jobs:
         run: |
           mkdir -p Payload
           cp -R build/Build/Products/Release-iphoneos/VideoSave.app Payload/
+          test -d Payload/VideoSave.app/PlugIns/VideoSaveShare.appex
+          /usr/libexec/PlistBuddy -c "Print :NSExtension:NSExtensionPointIdentifier" Payload/VideoSave.app/PlugIns/VideoSaveShare.appex/Info.plist | grep -qx com.apple.share-services
           zip -r VideoSave-unsigned.ipa Payload
 
       - name: Upload IPA

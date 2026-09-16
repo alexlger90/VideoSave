@@ -93,7 +93,7 @@ enum VideoUpscaler {
         for audioSource in try await original.load(.tracks).filter({ $0.mediaType == .audio }) {
             guard let audio = composition.addMutableTrack(withMediaType: .audio, preferredTrackID: kCMPersistentTrackID_Invalid) else { throw VideoSaveError.exportUnavailable }
             let audioRange = try await audioSource.load(.timeRange)
-            let range = CMTimeRangeGetIntersection(audioRange, CMTimeRange(start: .zero, duration: duration))
+            let range = CMTimeRangeGetIntersection(audioRange, otherRange: CMTimeRange(start: .zero, duration: duration))
             if range.duration.seconds > 0 { try audio.insertTimeRange(range, of: audioSource, at: range.start) }
         }
         let natural = try await source.load(.naturalSize)
@@ -144,7 +144,7 @@ enum VideoUpscaler {
         for y in stride(from: 0, to: height, by: tileSize) {
             for x in stride(from: 0, to: width, by: tileSize) {
                 try Task.checkCancellation()
-                try autoreleasepool {
+                do {
                     let array = try MLMultiArray(shape: [1, 3, NSNumber(value: modelSize), NSNumber(value: modelSize)], dataType: .float32)
                     let input = array.dataPointer.bindMemory(to: Float.self, capacity: array.count)
                     let strides = array.strides.map(\.intValue)
@@ -153,7 +153,9 @@ enum VideoUpscaler {
                         for xx in 0..<modelSize {
                             let sx = min(width - 1, max(0, x + xx - pad))
                             for channel in 0..<3 {
-                                input[channel * strides[1] + yy * strides[2] + xx * strides[3]] = Float(rgba[(sy * width + sx) * 4 + channel]) / 255
+                                let inputIndex = channel * strides[1] + yy * strides[2] + xx * strides[3]
+                                let sourceIndex = (sy * width + sx) * 4 + channel
+                                input[inputIndex] = Float(rgba[sourceIndex]) / 255
                             }
                         }
                     }
@@ -166,7 +168,10 @@ enum VideoUpscaler {
                         for xx in 0..<(min(tileSize, width - x) * 2) {
                             let dest = ((y * 2 + yy) * outWidth + x * 2 + xx) * 4
                             for channel in 0..<3 {
-                                let value = output[channel * os[1] + (yy + pad * 2) * os[2] + (xx + pad * 2) * os[3]].floatValue
+                                let channelOffset = channel * os[1]
+                                let rowOffset = (yy + pad * 2) * os[2]
+                                let columnOffset = (xx + pad * 2) * os[3]
+                                let value = output[channelOffset + rowOffset + columnOffset].floatValue
                                 pixels[dest + channel] = UInt8(max(0, min(255, value.isFinite ? value * 255 : 0)))
                             }
                             pixels[dest + 3] = 255

@@ -52,3 +52,11 @@ Ein grüner Build bestätigt keine dauerhafte Kompatibilität mit Änderungen ei
 Der Upscaler übernimmt die originale Audiospur in die finale Komposition und korrigiert die Videoorientierung. RGB-Modellausgabe und BGRA-Videopuffer werden explizit konvertiert; Modell-Strides werden berücksichtigt. Quellen unter 1080p erhalten zusätzlich zur 2×-AI-Inferenz eine proportionale Skalierung auf den 4K-Rahmen. Das ist keine native 4×-AI-Inferenz.
 
 Nach einem erfolgreichen Actions-Lauf `VideoSave-IPA` herunterladen und entpacken. Die enthaltene `VideoSave-unsigned.ipa` in Sideloadly öffnen, das iPhone auswählen und mit dem eigenen Apple-Account signieren/installieren. Die App benötigt iOS 18 oder neuer. Die Signierung erfolgt nicht im GitHub-Build.
+
+## Aus dem Browser teilen
+
+Die IPA enthält `VideoSaveShare.appex`, eine echte iOS-Share-Extension für Weblinks und Text. Nach der Installation: Browser → Teilen → Mehr → Bearbeiten → VideoSave als Favorit aktivieren. Die Reihenfolge legt iOS bzw. der Benutzer fest.
+
+Der Sideloadly-kompatible Ablauf ohne App-Group-Provisioning: In der Erweiterung **Link für VideoSave kopieren**, danach VideoSave öffnen und **Einsetzen** antippen. Erst dort starten Download und optionales 4K-Upscaling. Die Zwischenablage wird nur nach Tastendruck beschrieben/gelesen. Es gibt kein erzwungenes Öffnen der Haupt-App über private APIs.
+
+In Sideloadly **Remove Extensions** deaktiviert lassen: App und Teilen-Erweiterung müssen beide signiert/installiert werden. Entfernt Sideloadly die Erweiterung, fehlt VideoSave im Teilen-Menü. Der Workflow prüft, dass die Share-Extension in der IPA enthalten ist.

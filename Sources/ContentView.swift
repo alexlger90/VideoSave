@@ -158,6 +158,16 @@ struct ContentView: View {
                 .overlay(RoundedRectangle(cornerRadius: 12).stroke(.white.opacity(0.15)))
                 .accessibilityLabel("Video-URL")
                 .disabled(controlsLocked)
+            PasteButton(payloadType: String.self) { values in
+                if let pasted = values.compactMap({ SharedLink.url(from: $0) }).first {
+                    urlText = pasted.absoluteString
+                } else {
+                    manager.status = "Die Zwischenablage enthält keinen HTTP-/HTTPS-Link."
+                }
+            }
+            .labelStyle(.titleAndIcon)
+            .disabled(controlsLocked)
+            .accessibilityLabel("Videolink aus der Zwischenablage einsetzen")
             Button {
                 linkFocused = false
                 Task { await checkURL() }
