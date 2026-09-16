@@ -52,9 +52,16 @@ enum PornhubResolver {
         ]
 
         let (data, response) = try await requestData(url: pageURL, headers: pageHeaders, session: networkSession)
-        try MediaAccessPolicy.validateResponse(response)
-        guard let html = String(data: data, encoding: .utf8) else { throw VideoSaveError.mediaNotFound }
+        guard let html = String(data: data, encoding: .utf8) else {
+            try MediaAccessPolicy.validateResponse(response)
+            throw VideoSaveError.mediaNotFound
+        }
+        // Some anti-bot pages deliberately answer with HTTP 403 while still
+        // returning the CAPTCHA HTML. Inspect that body first so the app can
+        // offer the user the manual verification sheet instead of mislabeling it
+        // as a generic access block. This only detects the challenge.
         try MediaAccessPolicy.validatePage(html, finalURL: response.url)
+        try MediaAccessPolicy.validateResponse(response)
         let candidates = extractCandidates(from: html, baseURL: response.url ?? pageURL)
         guard !candidates.isEmpty else { throw VideoSaveError.mediaNotFound }
 
@@ -70,29 +77,34 @@ enum PornhubResolver {
             "User-Agent": VideoSaveBrowserUserAgent
         ]
 
-        if let hls = hlsCandidates.first {
-            let (playlistData, playlistResponse) = try await requestData(url: hls.url, headers: mediaHeaders, session: networkSession)
-            try MediaAccessPolicy.validateResponse(playlistResponse)
-            guard let playlist = String(data: playlistData, encoding: .utf8) else { throw VideoSaveError.mediaNotFound }
-            try MediaAccessPolicy.validatePlaylist(playlist)
-
-            let variants = try HLSParser.parseMasterPlaylist(text: playlist, baseURL: playlistResponse.url ?? hls.url).sorted {
-                if $0.height != $1.height { return $0.height > $1.height }
-                return $0.bandwidth > $1.bandwidth
-            }
+        // Prefer a concrete MP4/MOV/M4V when the public page exposes one.
+        // AVFoundation can consume HLS too, but CDN HLS manifests often have
+        // stricter request/header behavior than a direct media file. Keeping HLS
+        // as a fallback avoids reporting "no video track" for a perfectly
+        // usable direct source on the same page.
+        if let best = directCandidates.first {
             return PornhubResolution(
                 pageURL: pageURL,
-                defaultURL: hls.url,
-                variants: variants.isEmpty ? [HLSVariant(url: hls.url, width: 0, height: hls.quality, bandwidth: hls.bandwidth)] : variants,
+                defaultURL: best.url,
+                variants: directCandidates.map { HLSVariant(url: $0.url, width: 0, height: $0.quality, bandwidth: $0.bandwidth) },
                 requestHeaders: mediaHeaders
             )
         }
 
-        guard let best = directCandidates.first else { throw VideoSaveError.mediaNotFound }
+        guard let hls = hlsCandidates.first else { throw VideoSaveError.mediaNotFound }
+        let (playlistData, playlistResponse) = try await requestData(url: hls.url, headers: mediaHeaders, session: networkSession)
+        try MediaAccessPolicy.validateResponse(playlistResponse)
+        guard let playlist = String(data: playlistData, encoding: .utf8) else { throw VideoSaveError.mediaNotFound }
+        try MediaAccessPolicy.validatePlaylist(playlist)
+
+        let variants = try HLSParser.parseMasterPlaylist(text: playlist, baseURL: playlistResponse.url ?? hls.url).sorted {
+            if $0.height != $1.height { return $0.height > $1.height }
+            return $0.bandwidth > $1.bandwidth
+        }
         return PornhubResolution(
             pageURL: pageURL,
-            defaultURL: best.url,
-            variants: directCandidates.map { HLSVariant(url: $0.url, width: 0, height: $0.quality, bandwidth: $0.bandwidth) },
+            defaultURL: hls.url,
+            variants: variants.isEmpty ? [HLSVariant(url: hls.url, width: 0, height: hls.quality, bandwidth: hls.bandwidth)] : variants,
             requestHeaders: mediaHeaders
         )
     }
