@@ -7,7 +7,7 @@ on:
   pull_request:
 
 permissions:
-  contents: read
+  contents: write
   actions: write
 
 concurrency:
@@ -126,17 +126,34 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY=""
 
-      - name: Create unsigned IPA
+      - name: Create ready IPA
         run: |
           mkdir -p Payload
           cp -R build/Build/Products/Release-iphoneos/VideoSave.app Payload/
           test -d Payload/VideoSave.app/PlugIns/VideoSaveShare.appex
           /usr/libexec/PlistBuddy -c "Print :NSExtension:NSExtensionPointIdentifier" Payload/VideoSave.app/PlugIns/VideoSaveShare.appex/Info.plist | grep -qx com.apple.share-services
-          zip -r VideoSave-unsigned.ipa Payload
+          zip -r VideoSave.ipa Payload
 
-      - name: Upload IPA
+      - name: Upload IPA artifact
         uses: actions/upload-artifact@v4
         with:
           name: VideoSave-IPA
-          path: VideoSave-unsigned.ipa
+          path: VideoSave.ipa
           retention-days: 30
+
+      - name: Publish current IPA on GitHub
+        if: success() && github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete videosave-latest \
+            --repo "$GITHUB_REPOSITORY" \
+            --cleanup-tag \
+            --yes >/dev/null 2>&1 || true
+
+          gh release create videosave-latest \
+            VideoSave.ipa \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "VideoSave – aktuelle IPA" \
+            --notes "Fertige VideoSave IPA für Sideloadly. Datei herunterladen, in Sideloadly auswählen und mit dem eigenen Apple-Account auf dem iPhone installieren. Remove Extensions deaktiviert lassen, damit die Share-Extension erhalten bleibt."

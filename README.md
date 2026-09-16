@@ -2,6 +2,21 @@
 
 Native SwiftUI-App für iPhone zum Speichern öffentlich erreichbarer Videoquellen.
 
+## Fertige IPA herunterladen
+
+**[⬇️ VideoSave.ipa direkt von GitHub herunterladen](https://github.com/alexlger90/VideoSave/releases/download/videosave-latest/VideoSave.ipa)**
+
+Die IPA ist bereits fertig gebaut. Du musst **nichts mit Xcode bauen, nichts entpacken und keinen GitHub-Artifact herunterladen**. Für die Installation brauchst du nur **Sideloadly**:
+
+1. `VideoSave.ipa` über den Link oben herunterladen.
+2. Sideloadly öffnen und das iPhone verbinden.
+3. `VideoSave.ipa` in Sideloadly auswählen bzw. hineinziehen.
+4. Den eigenen Apple-Account für die Signierung verwenden.
+5. **Remove Extensions deaktiviert lassen**, damit die VideoSave-Share-Extension mit installiert wird.
+6. **Start** drücken und die App auf dem iPhone installieren lassen.
+
+Die IPA ist absichtlich nicht mit einem fremden Zertifikat vorsigniert. Sideloadly übernimmt die Signierung für dein Gerät und installiert die fertige App. Die App benötigt iOS 18 oder neuer.
+
 ## Funktionen
 
 - Direkte HTTP/HTTPS-Videodateien sowie unverschlüsselte HLS-VOD-Streams
@@ -17,28 +32,15 @@ VideoSave verwendet nur Medienquellen, die eine öffentlich erreichbare Seite se
 
 ## Unterstützte Seiten
 
-Resolver` erkennt zusätzlich die im Projekt hinterlegten 113 Domains und versucht dort öffentlich eingebettete MP4-/M4V-/MOV- oder HLS-Quellen zu verwenden. Da externe Seiten ihr Markup und ihre Player jederzeit ändern können, ist die Unterstützung best effort und wird durch die Quellen-Diagnose nachvollziehbar gemacht.
+Der Resolver erkennt zusätzlich die im Projekt hinterlegten 113 Quellen und versucht dort öffentlich eingebettete MP4-/M4V-/MOV- oder HLS-Quellen zu verwenden. Da externe Seiten ihr Markup und ihre Player jederzeit ändern können, ist die Unterstützung best effort und wird durch die Quellen-Diagnose nachvollziehbar gemacht.
 
-Die aktuelle Domainliste liegt in `Sources/GenericTubeResolver.swift`.
+Die aktuelle Quellenliste liegt in `Sources/GenericTubeResolver.swift`.
 
-## Build
+## Automatischer GitHub-Build
 
-Der GitHub-Actions-Workflow läuft auf `macos-15` mit Xcode 16.4:
+Der GitHub-Actions-Workflow läuft auf `macos-15` mit Xcode 16.4. Er führt die Resolver-/Zugriffsschutztests aus, baut die iPhone-App und erzeugt `VideoSave.ipa`.
 
-1. XcodeGen installieren
-2. Real-ESRGAN-x2plus-CoreML-Modell laden
-3. Xcode-Projekt aus `project.yml` erzeugen
-4. Resolver-/Zugriffsschutztests im iPhone-Simulator ausführen
-5. unsignierte iPhone-App bauen
-6. `VideoSave-unsigned.ipa` als Artifact bereitstellen
-
-Pushes auf `main`, Pull Requests und manuelle Workflow-Starts führen den Build aus. Test-Artefakte werden nur bei Fehlern hochgeladen und nach 7 Tagen gelöscht. Erfolgreiche Main-Builds behalten nur die Artefakte des aktuellen Laufs; ältere `VideoSave-*`-Artefakte werden automatisch entfernt. Die aktuelle IPA hat zusätzlich eine maximale Aufbewahrungszeit von 30 Tagen.
-
-## Installation
-
-Die erzeugte IPA ist absichtlich unsigniert. `VideoSave-unsigned.ipa` herunterladen und mit Sideloadly über den eigenen Apple-Account signieren/installieren. **Remove Extensions** in Sideloadly deaktiviert lassen, damit `VideoSaveShare.appex` erhalten bleibt.
-
-Die App benötigt iOS 18 oder neuer.
+Nach jedem erfolgreichen Build auf `main` wird die fertige IPA automatisch unter **Releases → VideoSave – aktuelle IPA** veröffentlicht. Der feste Download-Link oben zeigt dadurch immer auf die aktuelle Version. Alte Workflow-Runs werden automatisch entfernt, damit die Actions-Seite sauber bleibt.
 
 ## Share Sheet
 
@@ -51,4 +53,4 @@ Nach der Installation kann VideoSave im iOS-Teilen-Menü aktiviert werden. Die S
 - `Shared/` – gemeinsam verwendete Link-Logik
 - `Tests/` – Resolver-, HLS-, Export- und Schutztests
 - `project.yml` – XcodeGen-Projektdefinition
-- `.github/workflows/build-ipa.yml` – CI/IPA-Build
+- `.github/workflows/build-ipa.yml` – CI-, IPA- und Release-Build
