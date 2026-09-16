@@ -39,6 +39,11 @@ targets:
         CFBundleDisplayName: VideoSave
         CFBundleShortVersionString: "1.0"
         CFBundleVersion: "1"
+        CFBundleURLTypes:
+          - CFBundleTypeRole: Editor
+            CFBundleURLName: com.videosave.app
+            CFBundleURLSchemes:
+              - videosave
         UILaunchScreen: {}
         UIRequiredDeviceCapabilities: [arm64]
         NSPhotoLibraryAddUsageDescription: VideoSave benötigt Zugriff, um fertige Videos in Fotos zu speichern.
