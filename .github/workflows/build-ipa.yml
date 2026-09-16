@@ -62,9 +62,16 @@ jobs:
 
       - name: Capture cockpit preview
         run: |
-          xcrun simctl launch booted com.videosave.app
+          DEVICE_ID=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next(x["udid"] for group in d["devices"].values() for x in group if x["name"].startswith("iPhone")))')
+          APP_PATH="build-simulator/Build/Products/Debug-iphonesimulator/VideoSave.app"
+          test -d "$APP_PATH"
+          xcrun simctl boot "$DEVICE_ID" 2>/dev/null || true
+          xcrun simctl bootstatus "$DEVICE_ID" -b
+          xcrun simctl install "$DEVICE_ID" "$APP_PATH"
+          xcrun simctl launch "$DEVICE_ID" com.videosave.app
           sleep 3
-          xcrun simctl io booted screenshot Cockpit.png
+          xcrun simctl io "$DEVICE_ID" screenshot Cockpit.png
+          xcrun simctl shutdown "$DEVICE_ID" || true
 
       - name: Upload cockpit preview
         uses: actions/upload-artifact@v4
