@@ -7,6 +7,14 @@
     <key>CFBundleName</key><string>VideoSave</string>
     <key>CFBundleShortVersionString</key><string>1.0</string>
     <key>CFBundleVersion</key><string>1</string>
+    <key>CFBundleURLTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleTypeRole</key><string>Editor</string>
+            <key>CFBundleURLName</key><string>com.videosave.app</string>
+            <key>CFBundleURLSchemes</key><array><string>videosave</string></array>
+        </dict>
+    </array>
     <key>UILaunchScreen</key><dict/>
     <key>UIRequiredDeviceCapabilities</key><array><string>arm64</string></array>
     <key>NSPhotoLibraryAddUsageDescription</key><string>VideoSave benötigt Zugriff, um fertige Videos in Fotos zu speichern.</string>
