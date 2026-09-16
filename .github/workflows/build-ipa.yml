@@ -30,6 +30,24 @@ jobs:
       - name: Generate Xcode project
         run: xcodegen generate
 
+      - name: Package complete app source
+        run: |
+          rm -rf /tmp/VideoSave-complete
+          mkdir -p /tmp/VideoSave-complete
+          rsync -a ./ /tmp/VideoSave-complete/ \
+            --exclude '.git/' \
+            --exclude 'build/' \
+            --exclude 'build-simulator/' \
+            --exclude 'Payload/' \
+            --exclude 'TestResults.xcresult/'
+          ditto -c -k --sequesterRsrc --keepParent /tmp/VideoSave-complete VideoSave-complete.zip
+
+      - name: Upload complete app ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: VideoSave-Complete
+          path: VideoSave-complete.zip
+
       - name: Test resolver and access policy
         run: |
           DEVICE_ID=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next(x["udid"] for group in d["devices"].values() for x in group if x["name"].startswith("iPhone")))')
