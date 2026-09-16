@@ -21,7 +21,7 @@ Die IPA ist absichtlich nicht mit einem fremden Zertifikat vorsigniert. Sideload
 
 - Direkte HTTP/HTTPS-Videodateien sowie unverschlüsselte HLS-VOD-Streams
 - Qualitätsauswahl mit automatischem Quellen-Fallback
-- Spezialisierter Pornhub-Resolver plus generischer Resolver für 113 konfigurierte Video-Seiten
+- Spezialisierter Resolver plus generischer Resolver für 113 konfigurierte Video-Seiten
 - MP4/MOV-Ausgabe
 - Real-ESRGAN-CoreML-Upscaling für Quellen bis 1080p auf eine 4K-Ausgabe
 - Speichern in Dateien und Fotos
