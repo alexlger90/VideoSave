@@ -8,9 +8,11 @@ final class ShareViewController: UIViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        let host = UIHostingController(rootView: ShareLinkView(model: model, finish: { [weak self] in
-            self?.extensionContext?.completeRequest(returningItems: nil)
-        }))
+        let host = UIHostingController(rootView: ShareLinkView(
+            model: model,
+            openApp: { [weak self] in self?.openVideoSave() },
+            finish: { [weak self] in self?.extensionContext?.completeRequest(returningItems: nil) }
+        ))
         addChild(host)
         view.addSubview(host.view)
         host.view.translatesAutoresizingMaskIntoConstraints = false
@@ -28,22 +30,55 @@ final class ShareViewController: UIViewController {
         let items = extensionContext?.inputItems as? [NSExtensionItem] ?? []
         for item in items {
             for provider in item.attachments ?? [] {
-                for type in [UTType.url.identifier, UTType.plainText.identifier] where provider.hasItemConformingToTypeIdentifier(type) {
+                for type in [UTType.url.identifier, UTType.plainText.identifier]
+                where provider.hasItemConformingToTypeIdentifier(type) {
                     if let value = try? await load(provider, type: type),
                        let url = SharedLink.url(from: value) {
-                        model.url = url
-                        model.isLoading = false
+                        accept(url)
                         return
                     }
                 }
             }
-            if let text = item.attributedContentText?.string, let url = SharedLink.url(from: text) {
-                model.url = url
-                model.isLoading = false
+            if let text = item.attributedContentText?.string,
+               let url = SharedLink.url(from: text) {
+                accept(url)
                 return
             }
         }
         model.isLoading = false
+    }
+
+    private func accept(_ url: URL) {
+        model.url = url
+        model.isLoading = false
+        UIPasteboard.general.setItems(
+            [[UTType.url.identifier: url, UTType.utf8PlainText.identifier: url.absoluteString]],
+            options: [.localOnly: true]
+        )
+        model.copied = true
+        openVideoSave()
+    }
+
+    private func openVideoSave() {
+        guard let url = model.url,
+              let deepLink = SharedLink.appImportURL(for: url),
+              !model.isOpening else { return }
+        model.isOpening = true
+        model.openFailed = false
+
+        extensionContext?.open(deepLink) { [weak self] success in
+            Task { @MainActor in
+                guard let self else { return }
+                self.model.isOpening = false
+                if success {
+                    self.extensionContext?.completeRequest(returningItems: nil)
+                } else {
+                    // Share extensions are not guaranteed to be allowed to launch
+                    // their containing app. Keep the copied link as the fallback.
+                    self.model.openFailed = true
+                }
+            }
+        }
     }
 
     private func load(_ provider: NSItemProvider, type: String) async throws -> String? {
@@ -64,10 +99,13 @@ private final class ShareModel: ObservableObject {
     @Published var url: URL?
     @Published var isLoading = true
     @Published var copied = false
+    @Published var isOpening = false
+    @Published var openFailed = false
 }
 
 private struct ShareLinkView: View {
     @ObservedObject var model: ShareModel
+    let openApp: () -> Void
     let finish: () -> Void
 
     private let background = Color(red: 0.035, green: 0.045, blue: 0.06)
@@ -104,7 +142,7 @@ private struct ShareLinkView: View {
                                 Label(sourceName(url), systemImage: sourceIcon(url))
                                     .font(.headline)
                                 Spacer()
-                                Text("BEREIT")
+                                Text(model.isOpening ? "ÖFFNEN" : "BEREIT")
                                     .font(.caption2.monospaced().bold())
                                     .foregroundStyle(accent)
                                     .padding(.horizontal, 9).padding(.vertical, 5)
@@ -120,42 +158,44 @@ private struct ShareLinkView: View {
                                 Spacer()
                                 metric("4K", "IN APP")
                                 Spacer()
-                                metric("WEBVIEW", "AUS")
+                                metric("WEBVIEW", "CAPTCHA ONLY")
                             }
                         }
                         .pitCard(panel: panel)
 
-                        Text(model.copied
-                             ? "Link ist bereit. Öffne VideoSave, tippe auf „Einsetzen“ und starte Download, Qualitätswahl oder 4K-Upscaling."
-                             : "Übernimm den Link für VideoSave. Pornhub-view_video-Links werden dort direkt vom Resolver verarbeitet; es wird keine Webseite in der App geöffnet.")
-                            .font(.body)
-                            .foregroundStyle(.white.opacity(0.86))
+                        if model.openFailed {
+                            Label("Der Link ist bereits übernommen. iOS hat das automatische Öffnen aus der Share Extension abgelehnt; öffne VideoSave anschließend normal und tippe bei Bedarf auf „Einsetzen“.", systemImage: "iphone.and.arrow.forward")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                                .pitCard(panel: panel)
+                        } else {
+                            Text("VideoSave versucht den Link direkt an die Haupt-App zu übergeben. Der Link liegt zusätzlich sicher in der Zwischenablage bereit.")
+                                .font(.body)
+                                .foregroundStyle(.white.opacity(0.86))
+                        }
 
-                        Button {
-                            UIPasteboard.general.setItems([[UTType.url.identifier: url,
-                                                          UTType.utf8PlainText.identifier: url.absoluteString]],
-                                                         options: [.localOnly: true])
-                            model.copied = true
-                        } label: {
-                            Label(model.copied ? "Link erneut übernehmen" : "Link für VideoSave übernehmen",
-                                  systemImage: model.copied ? "checkmark.circle.fill" : "arrow.down.forward.circle.fill")
-                                .font(.headline)
-                                .frame(maxWidth: .infinity, minHeight: 48)
+                        Button(action: openApp) {
+                            HStack {
+                                if model.isOpening { ProgressView().tint(.white) }
+                                Label(model.isOpening ? "VideoSave wird geöffnet…" : "VideoSave öffnen",
+                                      systemImage: "arrow.up.forward.app.fill")
+                            }
+                            .font(.headline)
+                            .frame(maxWidth: .infinity, minHeight: 48)
                         }
                         .buttonStyle(.borderedProminent)
                         .buttonBorderShape(.roundedRectangle(radius: 14))
+                        .disabled(model.isOpening)
 
-                        if model.copied {
-                            Button("Fertig", action: finish)
-                                .frame(maxWidth: .infinity, minHeight: 42)
-                                .buttonStyle(.bordered)
-                        }
+                        Button("Fertig", action: finish)
+                            .frame(maxWidth: .infinity, minHeight: 42)
+                            .buttonStyle(.bordered)
                     } else {
                         Label("Kein unterstützter Weblink gefunden. Teile im Browser die Adresse der Videoseite oder einen direkten Medienlink.", systemImage: "link.badge.plus")
                             .pitCard(panel: panel)
                     }
 
-                    Label("Share Sheet → VideoSave · ohne In-App-Browser", systemImage: "square.and.arrow.up")
+                    Label("Share Sheet → VideoSave · keine automatische CAPTCHA-Umgehung", systemImage: "square.and.arrow.up")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity)
