@@ -26,6 +26,7 @@ targets:
         embed: true
     settings:
       base:
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         PRODUCT_NAME: VideoSave
         CODE_SIGN_STYLE: Manual
         CODE_SIGNING_ALLOWED: NO

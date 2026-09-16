@@ -37,9 +37,22 @@ jobs:
             -project VideoSave.xcodeproj \
             -scheme VideoSave \
             -destination "platform=iOS Simulator,id=$DEVICE_ID" \
+            -derivedDataPath build-simulator \
             -parallel-testing-enabled NO \
             -resultBundlePath TestResults.xcresult \
             CODE_SIGNING_ALLOWED=NO
+
+      - name: Capture cockpit preview
+        run: |
+          xcrun simctl launch booted com.videosave.app
+          sleep 3
+          xcrun simctl io booted screenshot Cockpit.png
+
+      - name: Upload cockpit preview
+        uses: actions/upload-artifact@v4
+        with:
+          name: VideoSave-Cockpit
+          path: Cockpit.png
 
       - name: Upload test results
         if: always()

@@ -83,7 +83,7 @@ enum VideoUpscaler {
         return CGSize(width: max(2, floor(size.width * scale / 2) * 2), height: max(2, floor(size.height * scale / 2) * 2))
     }
 
-    private static func finish4K(videoURL: URL, original: AVAsset, transform: CGAffineTransform, fps: Float, format: String) async throws -> URL {
+    static func finish4K(videoURL: URL, original: AVAsset, transform: CGAffineTransform, fps: Float, format: String) async throws -> URL {
         let upscaled = AVURLAsset(url: videoURL)
         guard let source = try await upscaled.load(.tracks).first(where: { $0.mediaType == .video }) else { throw VideoSaveError.noVideoTrack }
         let duration = try await upscaled.load(.duration)
