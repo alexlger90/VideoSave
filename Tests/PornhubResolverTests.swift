@@ -33,8 +33,17 @@ final class PornhubResolverTests: XCTestCase {
         XCTAssertEqual(result.variants.first?.height, 720)
     }
 
-    func testChallengeWordingDoesNotBlockConcreteMediaCandidate() async throws {
-        let session = makeSession(body: #"Verify you are human. var qualityItems_1 = [{"url":"https://cdn.example/720.mp4","text":"720p"}];"#)
+    func testVisibleChallengeStillFailsClosedEvenWithMediaCandidate() async {
+        let session = makeSession(body: #"<main>Verify you are human.</main><script>var qualityItems_1 = [{"url":"https://cdn.example/720.mp4","text":"720p"}];</script>"#)
+        defer { session.invalidateAndCancel() }
+        do {
+            _ = try await PornhubResolver.resolve(page, using: session)
+            XCTFail("Visible CAPTCHA must stop resolution")
+        } catch VideoSaveError.captchaRequired { } catch { XCTFail("Unexpected error: \(error)") }
+    }
+
+    func testChallengeWordsInsideScriptsDoNotCauseFalsePositive() async throws {
+        let session = makeSession(body: #"<script>const message='Verify you are human'; const provider='h-captcha';</script>var qualityItems_1 = [{"url":"https://cdn.example/720.mp4","text":"720p"}];"#)
         defer { session.invalidateAndCancel() }
         let result = try await PornhubResolver.resolve(page, using: session)
         XCTAssertEqual(result.defaultURL.absoluteString, "https://cdn.example/720.mp4")
@@ -53,9 +62,9 @@ final class PornhubResolverTests: XCTestCase {
         XCTAssertEqual(result.defaultURL.absoluteString, "https://cdn.example/1080.mp4")
     }
 
-    func testChallengeURLStillFailsClosedEvenWithMediaReference() {
+    func testChallengeURLStillFailsClosed() {
         XCTAssertThrowsError(try MediaAccessPolicy.validatePage(
-            #"var qualityItems_1 = [{"url":"https://cdn.example/1080.mp4","text":"1080p"}];"#,
+            "Please wait",
             finalURL: URL(string: "https://www.pornhub.com/challenge?id=1")
         )) { error in
             guard case VideoSaveError.captchaRequired = error else { return XCTFail("Unexpected error") }
@@ -98,6 +107,14 @@ final class PornhubResolverTests: XCTestCase {
         XCTAssertNil(SharedLink.url(from: "file:///private/video.mp4"))
         XCTAssertNil(SharedLink.url(from: "javascript:alert(1)"))
         XCTAssertNil(SharedLink.url(from: "Kein Link"))
+    }
+
+    func testShareDeepLinkRoundTrip() throws {
+        let original = URL(string: "https://www.pornhub.com/view_video.php?viewkey=abc123&foo=bar")!
+        let deepLink = try XCTUnwrap(SharedLink.appImportURL(for: original))
+        XCTAssertEqual(deepLink.scheme, "videosave")
+        XCTAssertEqual(SharedLink.importedURL(from: deepLink), original)
+        XCTAssertNil(SharedLink.importedURL(from: URL(string: "videosave://import?url=javascript:alert(1)")!))
     }
 
     private func makeSession(body: String) -> URLSession {
