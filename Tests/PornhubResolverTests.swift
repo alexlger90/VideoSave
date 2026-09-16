@@ -33,13 +33,17 @@ final class PornhubResolverTests: XCTestCase {
         XCTAssertEqual(result.variants.first?.height, 720)
     }
 
-    func testCaptchaIsRejectedEvenWithMediaCandidate() async {
-        let session = makeSession(body: #"Verify you are human. {"videoUrl":"https://cdn.example/720.mp4"}"#)
+    func testChallengeWordingDoesNotBlockConcreteMediaCandidate() async throws {
+        let session = makeSession(body: #"Verify you are human. var qualityItems_1 = [{"url":"https://cdn.example/720.mp4","text":"720p"}];"#)
         defer { session.invalidateAndCancel() }
-        do {
-            _ = try await PornhubResolver.resolve(page, using: session)
-            XCTFail("CAPTCHA must stop resolution")
-        } catch VideoSaveError.captchaRequired { } catch { XCTFail("Unexpected error: \(error)") }
+        let result = try await PornhubResolver.resolve(page, using: session)
+        XCTAssertEqual(result.defaultURL.absoluteString, "https://cdn.example/720.mp4")
+    }
+
+    func testChallengeWordingWithoutMediaStillFailsClosed() {
+        XCTAssertThrowsError(try MediaAccessPolicy.validatePage("Verify you are human", finalURL: page)) { error in
+            guard case VideoSaveError.captchaRequired = error else { return XCTFail("Unexpected error") }
+        }
     }
 
     func testPassiveCaptchaAssetsDoNotTriggerFalsePositive() async throws {
@@ -49,8 +53,11 @@ final class PornhubResolverTests: XCTestCase {
         XCTAssertEqual(result.defaultURL.absoluteString, "https://cdn.example/1080.mp4")
     }
 
-    func testChallengeURLStillFailsClosed() {
-        XCTAssertThrowsError(try MediaAccessPolicy.validatePage("Please wait", finalURL: URL(string: "https://www.pornhub.com/challenge?id=1"))) { error in
+    func testChallengeURLStillFailsClosedEvenWithMediaReference() {
+        XCTAssertThrowsError(try MediaAccessPolicy.validatePage(
+            #"var qualityItems_1 = [{"url":"https://cdn.example/1080.mp4","text":"1080p"}];"#,
+            finalURL: URL(string: "https://www.pornhub.com/challenge?id=1")
+        )) { error in
             guard case VideoSaveError.captchaRequired = error else { return XCTFail("Unexpected error") }
         }
     }
