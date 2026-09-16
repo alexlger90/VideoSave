@@ -17,11 +17,12 @@ enum MediaAccessPolicy {
         let path = finalURL?.path.lowercased() ?? ""
         let query = finalURL?.query?.lowercased() ?? ""
 
-        // Do not classify a normal page as a CAPTCHA merely because its HTML
-        // references recaptcha/hcaptcha/Cloudflare JavaScript. Many public pages
-        // preload those assets even when no challenge is being shown.
-        // We only stop when the returned page itself clearly represents a human
-        // verification flow. This detects the gate; it does not attempt to solve it.
+        // Pornhub can ship CAPTCHA/challenge wording and related JavaScript in a
+        // normal public video page. Do not treat that passive text as an active
+        // challenge when the same response already contains a concrete playable
+        // media reference. We still fail closed on an actual challenge URL or on
+        // challenge text when no playable media is present. Nothing here solves,
+        // submits, or bypasses a CAPTCHA.
         let explicitChallengeText = [
             "verify you are human",
             "verify that you are human",
@@ -40,7 +41,17 @@ enum MediaAccessPolicy {
             query.contains("captcha=") ||
             query.contains("challenge=")
 
-        if challengeURL || explicitChallengeText.contains(where: lower.contains) {
+        let hasMediaContainer = [
+            "qualityitems_",
+            "\"videourl\"",
+            "\"mediadefinitions\""
+        ].contains(where: lower.contains)
+        let hasMediaExtension = [".mp4", ".m3u8", ".m4v", ".mov"]
+            .contains(where: lower.contains)
+        let hasPlayableMediaReference = hasMediaContainer && hasMediaExtension
+
+        if challengeURL ||
+            (!hasPlayableMediaReference && explicitChallengeText.contains(where: lower.contains)) {
             throw VideoSaveError.captchaRequired
         }
 
