@@ -1,7 +1,9 @@
 import Foundation
 
-/// The same URL validation is used by the extension and the app's paste action.
+/// Shared URL validation for the app, share extension and VideoSave deep links.
 enum SharedLink {
+    static let appScheme = "videosave"
+
     static func url(from text: String) -> URL? {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         if let direct = validatedURL(trimmed) { return direct }
@@ -10,6 +12,25 @@ enum SharedLink {
         return detector.matches(in: text, range: range).compactMap { match in
             match.url.flatMap { validatedURL($0.absoluteString) }
         }.first
+    }
+
+    static func appImportURL(for sharedURL: URL) -> URL? {
+        guard let safeURL = validatedURL(sharedURL.absoluteString) else { return nil }
+        var components = URLComponents()
+        components.scheme = appScheme
+        components.host = "import"
+        components.queryItems = [URLQueryItem(name: "url", value: safeURL.absoluteString)]
+        return components.url
+    }
+
+    static func importedURL(from appURL: URL) -> URL? {
+        guard appURL.scheme?.lowercased() == appScheme,
+              appURL.host?.lowercased() == "import",
+              let components = URLComponents(url: appURL, resolvingAgainstBaseURL: false),
+              let raw = components.queryItems?.first(where: { $0.name == "url" })?.value else {
+            return nil
+        }
+        return validatedURL(raw)
     }
 
     private static func validatedURL(_ text: String) -> URL? {
