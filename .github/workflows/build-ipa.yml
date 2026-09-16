@@ -34,24 +34,6 @@ jobs:
       - name: Generate Xcode project
         run: xcodegen generate
 
-      - name: Package complete app source
-        run: |
-          rm -rf /tmp/VideoSave-complete
-          mkdir -p /tmp/VideoSave-complete
-          rsync -a ./ /tmp/VideoSave-complete/ \
-            --exclude '.git/' \
-            --exclude 'build/' \
-            --exclude 'build-simulator/' \
-            --exclude 'Payload/' \
-            --exclude 'TestResults.xcresult/'
-          ditto -c -k --sequesterRsrc --keepParent /tmp/VideoSave-complete VideoSave-complete.zip
-
-      - name: Upload complete app ZIP
-        uses: actions/upload-artifact@v4
-        with:
-          name: VideoSave-Complete
-          path: VideoSave-complete.zip
-
       - name: Test resolver and access policy
         run: |
           DEVICE_ID=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next(x["udid"] for group in d["devices"].values() for x in group if x["name"].startswith("iPhone")))')
@@ -64,13 +46,14 @@ jobs:
             -resultBundlePath TestResults.xcresult \
             CODE_SIGNING_ALLOWED=NO
 
-      - name: Upload test results
-        if: always()
+      - name: Upload failed test results
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: VideoSave-TestResults
           path: TestResults.xcresult
           if-no-files-found: ignore
+          retention-days: 7
 
       - name: Build unsigned iPhone app
         run: |
@@ -97,28 +80,4 @@ jobs:
         with:
           name: VideoSave-IPA
           path: VideoSave-unsigned.ipa
-
-      - name: Capture cockpit preview
-        continue-on-error: true
-        timeout-minutes: 2
-        run: |
-          DEVICE_ID=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next(x["udid"] for group in d["devices"].values() for x in group if x["name"].startswith("iPhone")))')
-          APP_PATH="build-simulator/Build/Products/Debug-iphonesimulator/VideoSave.app"
-          test -d "$APP_PATH"
-          xcrun simctl boot "$DEVICE_ID" 2>/dev/null || true
-          python3 - "$DEVICE_ID" <<'PY'
-          import subprocess, sys
-          subprocess.run(["xcrun", "simctl", "bootstatus", sys.argv[1], "-b"], check=True, timeout=90)
-          PY
-          xcrun simctl install "$DEVICE_ID" "$APP_PATH"
-          xcrun simctl launch "$DEVICE_ID" com.videosave.app
-          sleep 3
-          xcrun simctl io "$DEVICE_ID" screenshot Cockpit.png
-          xcrun simctl shutdown "$DEVICE_ID" || true
-
-      - name: Upload cockpit preview
-        if: ${{ always() && hashFiles('Cockpit.png') != '' }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: VideoSave-Cockpit
-          path: Cockpit.png
+          retention-days: 30

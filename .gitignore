@@ -1,0 +1,20 @@
+# macOS
+.DS_Store
+
+# Xcode / XcodeGen generated files
+VideoSave.xcodeproj/
+DerivedData/
+xcuserdata/
+*.xcuserstate
+
+# Build output
+build/
+build-simulator/
+Payload/
+*.ipa
+*.xcresult
+Cockpit.png
+
+# Downloaded/generated build assets
+Models/
+*.zip
