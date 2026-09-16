@@ -6,7 +6,7 @@ VideoSave ist eine native SwiftUI-App für iPhone. Sie verarbeitet direkte Video
 
 - Direkte HTTP/HTTPS-Video-Downloads
 - HLS-Master-Playlist-Erkennung
-- Auflösung öffentlicher Pornhub-Video-Seiten in vom Server bereitgestellte MP4-/HLS-Quellen
+- Auflösung öffentlicher XxX-Video-Seiten in vom Server bereitgestellte MP4-/HLS-Quellen
 - Qualitätsauswahl auch bei von der Seite gelieferten Videoquellen
 - Qualitätsauswahl: Original, 1080p, 720p, 480p, 360p, 240p, sofern im Master vorhanden
 - MP4 oder MOV
