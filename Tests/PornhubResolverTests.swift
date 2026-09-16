@@ -7,11 +7,13 @@ final class PornhubResolverTests: XCTestCase {
     func testOnlySupportedHTTPPagesMatch() {
         XCTAssertTrue(PornhubResolver.isPornhubPage(page))
         XCTAssertTrue(PornhubResolver.isPornhubPage(URL(string: "https://de.pornhub.com/view_video.php?viewkey=abc")!))
-        for value in ["https://pornhub.com.evil.example/view_video.php?viewkey=x",
-                      "https://notpornhub.com/view_video.php?viewkey=x",
-                      "https://pornhub.com/view_video.php?viewkey=",
-                      "https://pornhub.com/fake/view_video.php?viewkey=x",
-                      "file://pornhub.com/view_video.php?viewkey=x"] {
+        for value in [
+            "https://pornhub.com.evil.example/view_video.php?viewkey=x",
+            "https://notpornhub.com/view_video.php?viewkey=x",
+            "https://pornhub.com/view_video.php?viewkey=",
+            "https://pornhub.com/fake/view_video.php?viewkey=x",
+            "file://pornhub.com/view_video.php?viewkey=x"
+        ] {
             XCTAssertFalse(PornhubResolver.isPornhubPage(URL(string: value)!), value)
         }
     }
@@ -19,15 +21,73 @@ final class PornhubResolverTests: XCTestCase {
     func testDirectQualityItemsAreSortedWithoutBrowser() async throws {
         let session = makeSession(body: #"var qualityItems_1 = [{"url":"https://cdn.example/720.mp4","text":"720p"},{"url":"https://cdn.example/1080.mp4","text":"1080p"}];"#)
         defer { session.invalidateAndCancel() }
+
         let result = try await PornhubResolver.resolve(page, using: session)
         XCTAssertEqual(result.defaultURL.absoluteString, "https://cdn.example/1080.mp4")
         XCTAssertEqual(result.variants.map(\.height), [1080, 720])
+        XCTAssertEqual(result.candidates.map(\.kind), [.direct, .direct])
         XCTAssertEqual(result.requestHeaders["Referer"], page.absoluteString)
+    }
+
+    func testMixedDirectAndHLSCandidatesAreKept() async throws {
+        let html = #"var qualityItems_1 = [{"url":"https://cdn.example/video-1080.mp4","text":"1080p"},{"url":"https://cdn.example/master.m3u8","text":"1080p"}];"#
+        let master = """
+        #EXTM3U
+        #EXT-X-STREAM-INF:BANDWIDTH=4500000,RESOLUTION=1920x1080
+        https://cdn.example/hls/1080.m3u8
+        #EXT-X-STREAM-INF:BANDWIDTH=2200000,RESOLUTION=1280x720
+        https://cdn.example/hls/720.m3u8
+        """
+
+        let session = makeSession(routes: [
+            page.absoluteString: Fixture(body: html, contentType: "text/html"),
+            "https://cdn.example/master.m3u8": Fixture(body: master, contentType: "application/vnd.apple.mpegurl")
+        ])
+        defer { session.invalidateAndCancel() }
+
+        let result = try await PornhubResolver.resolve(page, using: session)
+        XCTAssertEqual(result.defaultURL.absoluteString, "https://cdn.example/video-1080.mp4")
+        XCTAssertEqual(result.candidates.count, 3)
+        XCTAssertEqual(result.candidates.filter { $0.kind == .direct }.count, 1)
+        XCTAssertEqual(result.candidates.filter { $0.kind == .hls }.map(\.quality).sorted(by: >), [1080, 720])
+        XCTAssertEqual(Set(result.variants.map(\.height)), Set([1080, 720]))
+    }
+
+    func testHTML5SourceElementIsRecognized() async throws {
+        let session = makeSession(body: #"<video><source src="https://cdn.example/movie-720.mp4" type="video/mp4"></video>"#)
+        defer { session.invalidateAndCancel() }
+
+        let result = try await PornhubResolver.resolve(page, using: session)
+        XCTAssertEqual(result.candidates.count, 1)
+        XCTAssertEqual(result.defaultURL.absoluteString, "https://cdn.example/movie-720.mp4")
+        XCTAssertEqual(result.candidates.first?.kind, .direct)
+    }
+
+    func testCandidateOrderingPrefersDirectAtSameQualityAndFallsBackLower() {
+        let candidates = [
+            PornhubMediaCandidate(url: URL(string: "https://cdn.example/1080.m3u8")!, quality: 1080, bandwidth: 4_000_000, kind: .hls),
+            PornhubMediaCandidate(url: URL(string: "https://cdn.example/720.mp4")!, quality: 720, bandwidth: 2_000_000, kind: .direct),
+            PornhubMediaCandidate(url: URL(string: "https://cdn.example/1080.mp4")!, quality: 1080, bandwidth: 4_000_000, kind: .direct),
+            PornhubMediaCandidate(url: URL(string: "https://cdn.example/480.m3u8")!, quality: 480, bandwidth: 1_000_000, kind: .hls)
+        ]
+
+        let ordered = MediaCandidateOrdering.order(candidates, quality: "1080p")
+        XCTAssertEqual(ordered.map(\.url.lastPathComponent), ["1080.mp4", "1080.m3u8", "720.mp4", "480.m3u8"])
+    }
+
+    func testFallbackPolicyStopsAtAccessControlsButRetriesBrokenPublicCandidate() {
+        XCTAssertTrue(MediaFallbackPolicy.shouldTryNext(after: VideoSaveError.noVideoTrack))
+        XCTAssertTrue(MediaFallbackPolicy.shouldTryNext(after: VideoSaveError.mediaNotFound))
+        XCTAssertTrue(MediaFallbackPolicy.shouldTryNext(after: VideoSaveError.exportFailed))
+        XCTAssertFalse(MediaFallbackPolicy.shouldTryNext(after: VideoSaveError.accessBlocked))
+        XCTAssertFalse(MediaFallbackPolicy.shouldTryNext(after: VideoSaveError.captchaRequired))
+        XCTAssertFalse(MediaFallbackPolicy.shouldTryNext(after: VideoSaveError.protectedStream))
     }
 
     func testUnicodeBeforeFlashvarsAndNonMediaURLs() async throws {
         let session = makeSession(body: #"🚗 ä var flashvars_42 = {"mediaDefinitions":[{"videoUrl":"https://cdn.example/720.mp4","quality":720},{"videoUrl":"javascript:alert(1)"},{"videoUrl":"https://example.com/login"}]};"#)
         defer { session.invalidateAndCancel() }
+
         let result = try await PornhubResolver.resolve(page, using: session)
         XCTAssertEqual(result.variants.count, 1)
         XCTAssertEqual(result.variants.first?.height, 720)
@@ -36,28 +96,36 @@ final class PornhubResolverTests: XCTestCase {
     func testVisibleChallengeStillFailsClosedEvenWithMediaCandidate() async {
         let session = makeSession(body: #"<main>Verify you are human.</main><script>var qualityItems_1 = [{"url":"https://cdn.example/720.mp4","text":"720p"}];</script>"#)
         defer { session.invalidateAndCancel() }
+
         do {
             _ = try await PornhubResolver.resolve(page, using: session)
             XCTFail("Visible CAPTCHA must stop resolution")
-        } catch VideoSaveError.captchaRequired { } catch { XCTFail("Unexpected error: \(error)") }
+        } catch VideoSaveError.captchaRequired {
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
     }
 
     func testChallengeWordsInsideScriptsDoNotCauseFalsePositive() async throws {
         let session = makeSession(body: #"<script>const message='Verify you are human'; const provider='h-captcha';</script>var qualityItems_1 = [{"url":"https://cdn.example/720.mp4","text":"720p"}];"#)
         defer { session.invalidateAndCancel() }
+
         let result = try await PornhubResolver.resolve(page, using: session)
         XCTAssertEqual(result.defaultURL.absoluteString, "https://cdn.example/720.mp4")
     }
 
     func testChallengeWordingWithoutMediaStillFailsClosed() {
         XCTAssertThrowsError(try MediaAccessPolicy.validatePage("Verify you are human", finalURL: page)) { error in
-            guard case VideoSaveError.captchaRequired = error else { return XCTFail("Unexpected error") }
+            guard case VideoSaveError.captchaRequired = error else {
+                return XCTFail("Unexpected error")
+            }
         }
     }
 
     func testPassiveCaptchaAssetsDoNotTriggerFalsePositive() async throws {
         let session = makeSession(body: #"<script src="https://www.google.com/recaptcha/api.js"></script><script>const provider='h-captcha'; const cloudflare='cf-chl-widget';</script>var qualityItems_1 = [{"url":"https://cdn.example/1080.mp4","text":"1080p"}];"#)
         defer { session.invalidateAndCancel() }
+
         let result = try await PornhubResolver.resolve(page, using: session)
         XCTAssertEqual(result.defaultURL.absoluteString, "https://cdn.example/1080.mp4")
     }
@@ -67,7 +135,9 @@ final class PornhubResolverTests: XCTestCase {
             "Please wait",
             finalURL: URL(string: "https://www.pornhub.com/challenge?id=1")
         )) { error in
-            guard case VideoSaveError.captchaRequired = error else { return XCTFail("Unexpected error") }
+            guard case VideoSaveError.captchaRequired = error else {
+                return XCTFail("Unexpected error")
+            }
         }
     }
 
@@ -75,7 +145,9 @@ final class PornhubResolverTests: XCTestCase {
         for status in [401, 403, 429, 451] {
             let response = HTTPURLResponse(url: page, statusCode: status, httpVersion: nil, headerFields: nil)!
             XCTAssertThrowsError(try MediaAccessPolicy.validateResponse(response)) { error in
-                guard case VideoSaveError.accessBlocked = error else { return XCTFail("Unexpected error") }
+                guard case VideoSaveError.accessBlocked = error else {
+                    return XCTFail("Unexpected error")
+                }
             }
         }
     }
@@ -88,7 +160,11 @@ final class PornhubResolverTests: XCTestCase {
     }
 
     func testEncryptedAndInvalidPlaylistsFailClosed() {
-        for text in ["#EXTM3U\n#EXT-X-KEY:METHOD=AES-128", "#EXTM3U\n#EXT-X-SESSION-KEY:METHOD=SAMPLE-AES", "<html>Access denied</html>"] {
+        for text in [
+            "#EXTM3U\n#EXT-X-KEY:METHOD=AES-128",
+            "#EXTM3U\n#EXT-X-SESSION-KEY:METHOD=SAMPLE-AES",
+            "<html>Access denied</html>"
+        ] {
             XCTAssertThrowsError(try MediaAccessPolicy.validatePlaylist(text))
         }
         XCTAssertNoThrow(try MediaAccessPolicy.validatePlaylist("#EXTM3U\n#EXTINF:5,\nsegment.ts"))
@@ -118,22 +194,54 @@ final class PornhubResolverTests: XCTestCase {
     }
 
     private func makeSession(body: String) -> URLSession {
-        FixtureProtocol.body = body
+        makeSession(routes: [page.absoluteString: Fixture(body: body, contentType: "text/html")])
+    }
+
+    private func makeSession(routes: [String: Fixture]) -> URLSession {
+        FixtureProtocol.routes = routes
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [FixtureProtocol.self]
         return URLSession(configuration: configuration)
     }
 }
 
+private struct Fixture {
+    let body: String
+    let contentType: String
+    var statusCode: Int = 200
+}
+
 private final class FixtureProtocol: URLProtocol {
-    static var body = ""
+    static var routes: [String: Fixture] = [:]
+
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+
     override func startLoading() {
-        let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: "HTTP/1.1", headerFields: ["Content-Type": "text/html"])!
+        guard let url = request.url,
+              let fixture = Self.routes[url.absoluteString] else {
+            let response = HTTPURLResponse(
+                url: request.url!,
+                statusCode: 404,
+                httpVersion: "HTTP/1.1",
+                headerFields: ["Content-Type": "text/plain"]
+            )!
+            client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+            client?.urlProtocol(self, didLoad: Data("Not found".utf8))
+            client?.urlProtocolDidFinishLoading(self)
+            return
+        }
+
+        let response = HTTPURLResponse(
+            url: url,
+            statusCode: fixture.statusCode,
+            httpVersion: "HTTP/1.1",
+            headerFields: ["Content-Type": fixture.contentType]
+        )!
         client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
-        client?.urlProtocol(self, didLoad: Data(Self.body.utf8))
+        client?.urlProtocol(self, didLoad: Data(fixture.body.utf8))
         client?.urlProtocolDidFinishLoading(self)
     }
+
     override func stopLoading() { }
 }
