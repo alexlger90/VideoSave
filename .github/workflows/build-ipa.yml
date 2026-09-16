@@ -60,25 +60,6 @@ jobs:
             -resultBundlePath TestResults.xcresult \
             CODE_SIGNING_ALLOWED=NO
 
-      - name: Capture cockpit preview
-        run: |
-          DEVICE_ID=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next(x["udid"] for group in d["devices"].values() for x in group if x["name"].startswith("iPhone")))')
-          APP_PATH="build-simulator/Build/Products/Debug-iphonesimulator/VideoSave.app"
-          test -d "$APP_PATH"
-          xcrun simctl boot "$DEVICE_ID" 2>/dev/null || true
-          xcrun simctl bootstatus "$DEVICE_ID" -b
-          xcrun simctl install "$DEVICE_ID" "$APP_PATH"
-          xcrun simctl launch "$DEVICE_ID" com.videosave.app
-          sleep 3
-          xcrun simctl io "$DEVICE_ID" screenshot Cockpit.png
-          xcrun simctl shutdown "$DEVICE_ID" || true
-
-      - name: Upload cockpit preview
-        uses: actions/upload-artifact@v4
-        with:
-          name: VideoSave-Cockpit
-          path: Cockpit.png
-
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4
@@ -112,3 +93,28 @@ jobs:
         with:
           name: VideoSave-IPA
           path: VideoSave-unsigned.ipa
+
+      - name: Capture cockpit preview
+        continue-on-error: true
+        timeout-minutes: 2
+        run: |
+          DEVICE_ID=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next(x["udid"] for group in d["devices"].values() for x in group if x["name"].startswith("iPhone")))')
+          APP_PATH="build-simulator/Build/Products/Debug-iphonesimulator/VideoSave.app"
+          test -d "$APP_PATH"
+          xcrun simctl boot "$DEVICE_ID" 2>/dev/null || true
+          python3 - "$DEVICE_ID" <<'PY'
+          import subprocess, sys
+          subprocess.run(["xcrun", "simctl", "bootstatus", sys.argv[1], "-b"], check=True, timeout=90)
+          PY
+          xcrun simctl install "$DEVICE_ID" "$APP_PATH"
+          xcrun simctl launch "$DEVICE_ID" com.videosave.app
+          sleep 3
+          xcrun simctl io "$DEVICE_ID" screenshot Cockpit.png
+          xcrun simctl shutdown "$DEVICE_ID" || true
+
+      - name: Upload cockpit preview
+        if: ${{ always() && hashFiles('Cockpit.png') != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: VideoSave-Cockpit
+          path: Cockpit.png
