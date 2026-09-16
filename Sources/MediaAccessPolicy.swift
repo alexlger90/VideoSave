@@ -1,5 +1,9 @@
 import Foundation
 
+// AVURLAsset accepts this raw options key for HTTP request headers. Xcode 16.4
+// no longer exposes the old SDK declaration to Swift, so keep the string here.
+let AVURLAssetHTTPHeaderFieldsKey = "AVURLAssetHTTPHeaderFieldsKey"
+
 /// Fail closed when a source requires authorization or a protection check fails.
 enum MediaAccessPolicy {
     static func validateResponse(_ response: URLResponse) throws {
