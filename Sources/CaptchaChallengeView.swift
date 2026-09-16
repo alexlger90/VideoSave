@@ -74,10 +74,12 @@ private struct CaptchaWebView: UIViewRepresentable {
         let webView = WKWebView(frame: .zero, configuration: configuration)
         webView.navigationDelegate = context.coordinator
         webView.allowsBackForwardNavigationGestures = true
+        webView.customUserAgent = VideoSaveBrowserUserAgent
         session.webView = webView
 
         var request = URLRequest(url: url)
         request.setValue("text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8", forHTTPHeaderField: "Accept")
+        request.setValue(VideoSaveBrowserUserAgent, forHTTPHeaderField: "User-Agent")
         webView.load(request)
         return webView
     }
@@ -104,8 +106,12 @@ private struct CaptchaWebView: UIViewRepresentable {
                 return
             }
 
-            let root = originalHost.hasPrefix("www.") ? String(originalHost.dropFirst(4)) : originalHost
-            let sameSite = host == root || host == "www.\(root)" || host.hasSuffix(".\(root)")
+            let sameSite: Bool
+            if originalHost == "pornhub.com" || originalHost.hasSuffix(".pornhub.com") {
+                sameSite = host == "pornhub.com" || host.hasSuffix(".pornhub.com")
+            } else {
+                sameSite = host == originalHost
+            }
             decisionHandler(sameSite ? .allow : .cancel)
         }
     }
