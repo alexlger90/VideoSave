@@ -32,7 +32,7 @@ Der GitHub-Actions-Workflow läuft auf `macos-15` mit Xcode 16.4:
 5. unsignierte iPhone-App bauen
 6. `VideoSave-unsigned.ipa` als Artifact bereitstellen
 
-Pushes auf `main`, Pull Requests und manuelle Workflow-Starts führen den Build aus. Test-Artefakte werden nur bei Fehlern hochgeladen und nach 7 Tagen gelöscht; IPA-Artefakte werden 30 Tage aufbewahrt.
+Pushes auf `main`, Pull Requests und manuelle Workflow-Starts führen den Build aus. Test-Artefakte werden nur bei Fehlern hochgeladen und nach 7 Tagen gelöscht. Erfolgreiche Main-Builds behalten nur die Artefakte des aktuellen Laufs; ältere `VideoSave-*`-Artefakte werden automatisch entfernt. Die aktuelle IPA hat zusätzlich eine maximale Aufbewahrungszeit von 30 Tagen.
 
 ## Installation
 
