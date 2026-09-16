@@ -783,5 +783,3 @@ enum HLSParser {
         return result
     }
 }
-
-@MainActor
