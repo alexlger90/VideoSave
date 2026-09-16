@@ -35,6 +35,14 @@ targets:
         SWIFT_EMIT_LOC_STRINGS: YES
     info:
       path: Sources/Info.plist
+      properties:
+        CFBundleDisplayName: VideoSave
+        CFBundleShortVersionString: "1.0"
+        CFBundleVersion: "1"
+        UILaunchScreen: {}
+        UIRequiredDeviceCapabilities: [arm64]
+        NSPhotoLibraryAddUsageDescription: VideoSave benötigt Zugriff, um fertige Videos in Fotos zu speichern.
+        NSPhotoLibraryUsageDescription: VideoSave benötigt Zugriff, um fertige Videos in Fotos zu speichern.
 
   VideoSaveShare:
     type: app-extension
@@ -52,6 +60,17 @@ targets:
         CODE_SIGNING_REQUIRED: NO
     info:
       path: ShareExtension/Info.plist
+      properties:
+        CFBundleDisplayName: VideoSave
+        CFBundleShortVersionString: "1.0"
+        CFBundleVersion: "1"
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.share-services
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).ShareViewController
+          NSExtensionAttributes:
+            NSExtensionActivationRule:
+              NSExtensionActivationSupportsWebURLWithMaxCount: 1
+              NSExtensionActivationSupportsText: true
 
   VideoSaveTests:
     type: bundle.unit-test
@@ -62,6 +81,7 @@ targets:
       - target: VideoSave
     settings:
       base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.videosave.app.tests
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_FILE: ""
         CODE_SIGNING_ALLOWED: NO
