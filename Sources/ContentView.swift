@@ -1,5 +1,6 @@
 import SwiftUI
 import UniformTypeIdentifiers
+import UIKit
 
 private enum GarageStyle {
     static let background = Color(red: 0.035, green: 0.045, blue: 0.06)
@@ -16,6 +17,7 @@ struct ContentView: View {
     @State private var variants: [HLSVariant] = []
     @State private var isChecking = false
     @State private var captchaURL: URL?
+    @State private var showDiagnostics = false
     @FocusState private var linkFocused: Bool
 
     private var controlsLocked: Bool { isChecking || manager.isBusy }
@@ -30,11 +32,12 @@ struct ContentView: View {
                     sourceCard
                     setupCard
                     if !manager.status.isEmpty { statusCard }
+                    if !manager.diagnosticLog.isEmpty { diagnosticCard }
                     saveButton
                     if let outputURL = manager.outputURL, !manager.isBusy {
                         exportCard(outputURL)
                     }
-                    Label("Direkte Auflösung · ohne In-App-Browser · CAPTCHA nur manuell", systemImage: "link")
+                    Label("Direkte Auflösung · Quellen-Fallback · CAPTCHA nur manuell", systemImage: "link")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity)
@@ -76,6 +79,8 @@ struct ContentView: View {
                 variants = []
                 selectedQuality = "Original"
                 manager.status = ""
+                manager.diagnosticLog = []
+                showDiagnostics = false
             }
         }
         .tint(GarageStyle.accent)
@@ -233,7 +238,7 @@ struct ContentView: View {
                         .font(.footnote).foregroundStyle(.secondary)
                 }
             }
-            Text(variants.isEmpty ? "Prüfe den Link, um verfügbare Qualitäten auszuwählen." : "\(availableQualityNames.count - 1) Auflösungen verfügbar. Original verwendet die beste angebotene Quelle.")
+            Text(variants.isEmpty ? "Prüfe den Link, um verfügbare Qualitäten auszuwählen." : "\(availableQualityNames.count - 1) Auflösungen verfügbar. VideoSave testet bei Bedarf mehrere Quellen automatisch.")
                 .font(.footnote).foregroundStyle(.secondary)
         }
         .disabled(controlsLocked)
@@ -253,13 +258,44 @@ struct ContentView: View {
         .garageCard()
     }
 
+    private var diagnosticCard: some View {
+        DisclosureGroup(isExpanded: $showDiagnostics) {
+            VStack(alignment: .leading, spacing: 12) {
+                Text(manager.diagnosticText)
+                    .font(.caption.monospaced())
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                Button {
+                    UIPasteboard.general.string = manager.diagnosticText
+                    manager.status = "Quellen-Diagnose kopiert."
+                } label: {
+                    Label("Diagnose kopieren", systemImage: "doc.on.doc")
+                        .frame(maxWidth: .infinity, minHeight: 34)
+                }
+                .buttonStyle(.bordered)
+            }
+            .padding(.top, 10)
+        } label: {
+            Label("Quellen-Diagnose", systemImage: "stethoscope")
+                .font(.subheadline.weight(.semibold))
+        }
+        .garageCard()
+    }
+
     private var saveButton: some View {
         Button {
             linkFocused = false
             Task {
                 guard await prepareForSave() else { return }
-                await manager.download(urlString: urlText, quality: selectedQuality, variants: variants,
-                                       format: selectedFormat, upscale2x: aiUpscale)
+                await manager.download(
+                    urlString: urlText,
+                    quality: selectedQuality,
+                    variants: variants,
+                    format: selectedFormat,
+                    upscale2x: aiUpscale
+                )
             }
         } label: {
             Label(manager.isBusy ? "Video wird verarbeitet…" : "Video speichern", systemImage: "arrow.down.to.line")
@@ -310,6 +346,7 @@ struct ContentView: View {
         variants = []
         selectedQuality = "Original"
         defer { isChecking = false }
+
         do {
             variants = try await manager.inspect(urlString: urlText)
             manager.status = variants.isEmpty ? "Direkter Medienlink erkannt." : "Videoquelle bereit. Wähle dein Setup."
