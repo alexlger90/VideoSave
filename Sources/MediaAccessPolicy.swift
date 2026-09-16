@@ -14,10 +14,36 @@ enum MediaAccessPolicy {
 
     static func validatePage(_ html: String, finalURL: URL?) throws {
         let lower = html.lowercased()
-        if ["verify you are human", "complete the captcha", "captcha required", "g-recaptcha", "h-captcha", "cf-chl-"].contains(where: lower.contains) {
+        let path = finalURL?.path.lowercased() ?? ""
+        let query = finalURL?.query?.lowercased() ?? ""
+
+        // Do not classify a normal page as a CAPTCHA merely because its HTML
+        // references recaptcha/hcaptcha/Cloudflare JavaScript. Many public pages
+        // preload those assets even when no challenge is being shown.
+        // We only stop when the returned page itself clearly represents a human
+        // verification flow. This detects the gate; it does not attempt to solve it.
+        let explicitChallengeText = [
+            "verify you are human",
+            "verify that you are human",
+            "complete the captcha",
+            "captcha required",
+            "human verification",
+            "please complete the security check",
+            "checking if the site connection is secure",
+            "performing security verification"
+        ]
+        let challengeURL =
+            path.contains("/captcha") ||
+            path.contains("/challenge") ||
+            path.contains("/verify-human") ||
+            path.contains("/human-verification") ||
+            query.contains("captcha=") ||
+            query.contains("challenge=")
+
+        if challengeURL || explicitChallengeText.contains(where: lower.contains) {
             throw VideoSaveError.captchaRequired
         }
-        let path = finalURL?.path.lowercased() ?? ""
+
         if path.hasPrefix("/login") || path.hasPrefix("/auth") ||
             ["login required", "log in to watch", "sign in to watch", "not available in your region", "not available in your country", "access denied", "premium members only", "this video is private"].contains(where: lower.contains) {
             throw VideoSaveError.accessBlocked
