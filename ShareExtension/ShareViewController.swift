@@ -70,47 +70,130 @@ private struct ShareLinkView: View {
     @ObservedObject var model: ShareModel
     let finish: () -> Void
 
+    private let background = Color(red: 0.035, green: 0.045, blue: 0.06)
+    private let panel = Color(red: 0.085, green: 0.10, blue: 0.12)
+    private let accent = Color(red: 1, green: 0.24, blue: 0.19)
+
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
-                    Image(systemName: "flag.checkered").font(.largeTitle).foregroundStyle(.red)
-                    Text("Ab in die Garage.").font(.largeTitle.bold())
+                VStack(alignment: .leading, spacing: 18) {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("VIDEOSAVE / PIT LANE")
+                                .font(.caption2.weight(.bold)).tracking(2.5)
+                                .foregroundStyle(accent)
+                            Text("Link in die Garage")
+                                .font(.title.bold())
+                        }
+                        Spacer()
+                        Image(systemName: "flag.checkered")
+                            .font(.largeTitle)
+                            .foregroundStyle(.white.opacity(0.9))
+                    }
+
                     if model.isLoading {
-                        ProgressView("Link wird übernommen…")
+                        HStack(spacing: 12) {
+                            ProgressView().tint(accent)
+                            Text("Browser-Link wird übernommen…")
+                        }
+                        .pitCard(panel: panel)
                     } else if let url = model.url {
-                        Text(url.host ?? "Videolink").font(.headline)
-                        Text(url.absoluteString).font(.footnote.monospaced())
-                            .foregroundStyle(.secondary).lineLimit(5)
+                        VStack(alignment: .leading, spacing: 14) {
+                            HStack {
+                                Label(sourceName(url), systemImage: sourceIcon(url))
+                                    .font(.headline)
+                                Spacer()
+                                Text("BEREIT")
+                                    .font(.caption2.monospaced().bold())
+                                    .foregroundStyle(accent)
+                                    .padding(.horizontal, 9).padding(.vertical, 5)
+                                    .background(accent.opacity(0.16), in: Capsule())
+                            }
+                            Text(url.absoluteString)
+                                .font(.footnote.monospaced())
+                                .foregroundStyle(.secondary)
+                                .lineLimit(4)
+                            Divider().overlay(.white.opacity(0.08))
+                            HStack {
+                                metric("QUELLE", sourceName(url))
+                                Spacer()
+                                metric("4K", "IN APP")
+                                Spacer()
+                                metric("WEBVIEW", "AUS")
+                            }
+                        }
+                        .pitCard(panel: panel)
+
                         Text(model.copied
-                             ? "Link kopiert. Öffne VideoSave und tippe auf „Einsetzen“. Dort kannst du Qualität, Format und 4K wählen."
-                             : "Kopiere den Link und setze ihn anschließend in VideoSave ein. Download und 4K-Verarbeitung laufen in der App.")
+                             ? "Link ist bereit. Öffne VideoSave, tippe auf „Einsetzen“ und starte Download, Qualitätswahl oder 4K-Upscaling."
+                             : "Übernimm den Link für VideoSave. Pornhub-view_video-Links werden dort direkt vom Resolver verarbeitet; es wird keine Webseite in der App geöffnet.")
                             .font(.body)
+                            .foregroundStyle(.white.opacity(0.86))
+
                         Button {
                             UIPasteboard.general.setItems([[UTType.url.identifier: url,
                                                           UTType.utf8PlainText.identifier: url.absoluteString]],
                                                          options: [.localOnly: true])
                             model.copied = true
                         } label: {
-                            Label(model.copied ? "Erneut kopieren" : "Link für VideoSave kopieren", systemImage: "doc.on.clipboard")
-                                .frame(maxWidth: .infinity, minHeight: 44)
+                            Label(model.copied ? "Link erneut übernehmen" : "Link für VideoSave übernehmen",
+                                  systemImage: model.copied ? "checkmark.circle.fill" : "arrow.down.forward.circle.fill")
+                                .font(.headline)
+                                .frame(maxWidth: .infinity, minHeight: 48)
                         }
                         .buttonStyle(.borderedProminent)
+                        .buttonBorderShape(.roundedRectangle(radius: 14))
+
                         if model.copied {
-                            Button("Fertig", action: finish).frame(maxWidth: .infinity, minHeight: 44)
+                            Button("Fertig", action: finish)
+                                .frame(maxWidth: .infinity, minHeight: 42)
+                                .buttonStyle(.bordered)
                         }
                     } else {
-                        Label("Kein unterstützter Weblink gefunden. Teile die Adresse einer Videoseite oder einen direkten Videolink.", systemImage: "link.badge.plus")
+                        Label("Kein unterstützter Weblink gefunden. Teile im Browser die Adresse der Videoseite oder einen direkten Medienlink.", systemImage: "link.badge.plus")
+                            .pitCard(panel: panel)
                     }
+
+                    Label("Share Sheet → VideoSave · ohne In-App-Browser", systemImage: "square.and.arrow.up")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity)
+                        .padding(.top, 4)
                 }
-                .padding(24)
+                .padding(22)
             }
-            .background(Color(red: 0.035, green: 0.045, blue: 0.06))
+            .background(background)
             .navigationTitle("VideoSave")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Schließen", action: finish) } }
         }
-        .tint(Color(red: 1, green: 0.24, blue: 0.19))
+        .tint(accent)
         .preferredColorScheme(.dark)
+    }
+
+    private func sourceName(_ url: URL) -> String {
+        let host = (url.host ?? "").lowercased()
+        return host.contains("pornhub.com") ? "Pornhub" : (url.host ?? "Videolink")
+    }
+
+    private func sourceIcon(_ url: URL) -> String {
+        (url.host ?? "").lowercased().contains("pornhub.com") ? "play.rectangle.fill" : "link"
+    }
+
+    private func metric(_ title: String, _ value: String) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(title).font(.caption2.monospaced()).foregroundStyle(.secondary)
+            Text(value).font(.caption.bold()).lineLimit(1)
+        }
+    }
+}
+
+private extension View {
+    func pitCard(panel: Color) -> some View {
+        self.padding(18)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(panel, in: RoundedRectangle(cornerRadius: 18))
+            .overlay(RoundedRectangle(cornerRadius: 18).stroke(.white.opacity(0.08)))
     }
 }
