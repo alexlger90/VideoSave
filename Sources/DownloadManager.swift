@@ -258,7 +258,7 @@ final class DownloadManager: NSObject, ObservableObject {
             status = "HLS-Stream wird geprüft…"
             try await rejectProtectedHLSIfNeeded(url: url, headers: headers)
 
-            status = "HLS wird geladen…"
+            status = "HLS-Segmente werden geladen…"
             let temp = try await exportHLS(url: url, format: format, headers: headers)
             try await finishVideo(inputURL: temp, format: format, upscale2x: upscale2x)
 
@@ -310,6 +310,9 @@ final class DownloadManager: NSObject, ObservableObject {
             case .photosDenied: return "Fotozugriff verweigert"
             }
         }
+        if let hlsError = error as? HLSOfflineError {
+            return hlsError.localizedDescription
+        }
         let nsError = error as NSError
         return "\(nsError.domain) \(nsError.code)"
     }
@@ -353,43 +356,18 @@ final class DownloadManager: NSObject, ObservableObject {
         format: String,
         headers: [String: String]
     ) async throws -> URL {
-        var options: [String: Any] = [:]
-        if !headers.isEmpty {
-            options[AVURLAssetHTTPHeaderFieldsKey] = headers
+        let result = try await HLSOfflineDownloader.download(
+            url: url,
+            headers: headers,
+            session: mediaSession
+        ) { [weak self] value in
+            self?.progress = value
         }
 
-        let asset = AVURLAsset(url: url, options: options.isEmpty ? nil : options)
-
-        // Do not reject an HLS URL merely because load(.tracks) is initially empty.
-        // Some valid variant playlists only expose their tracks once AVFoundation has
-        // prepared the streaming asset. isPlayable is the safer preflight signal.
-        let playable = try await asset.load(.isPlayable)
-        guard playable else { throw VideoSaveError.noVideoTrack }
-
-        guard let exporter = AVAssetExportSession(
-            asset: asset,
-            presetName: AVAssetExportPresetHighestQuality
-        ) else {
-            throw VideoSaveError.exportUnavailable
+        for line in result.diagnosticLines {
+            appendDiagnostic(line)
         }
-
-        let ext = format == "MOV" ? "mov" : "mp4"
-        let destination = FileManager.default.temporaryDirectory
-            .appendingPathComponent("videosave_hls_\(UUID().uuidString).\(ext)")
-
-        exporter.outputURL = destination
-        exporter.outputFileType = format == "MOV" ? .mov : .mp4
-        exporter.shouldOptimizeForNetworkUse = true
-        status = "HLS wird in \(format) exportiert…"
-
-        await exporter.export()
-
-        guard exporter.status == .completed else {
-            try? FileManager.default.removeItem(at: destination)
-            throw exporter.error ?? VideoSaveError.exportFailed
-        }
-
-        return destination
+        return result.fileURL
     }
 
     private func rejectProtectedHLSIfNeeded(

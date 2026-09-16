@@ -46,6 +46,8 @@ targets:
               - videosave
         UILaunchScreen: {}
         UIRequiredDeviceCapabilities: [arm64]
+        UIFileSharingEnabled: true
+        LSSupportsOpeningDocumentsInPlace: true
         NSPhotoLibraryAddUsageDescription: VideoSave benötigt Zugriff, um fertige Videos in Fotos zu speichern.
         NSPhotoLibraryUsageDescription: VideoSave benötigt Zugriff, um fertige Videos in Fotos zu speichern.
 
