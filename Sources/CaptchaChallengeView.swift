@@ -110,13 +110,3 @@ private struct CaptchaWebView: UIViewRepresentable {
         }
     }
 }
-
-private extension WKHTTPCookieStore {
-    func allCookies() async -> [HTTPCookie] {
-        await withCheckedContinuation { continuation in
-            getAllCookies { cookies in
-                continuation.resume(returning: cookies)
-            }
-        }
-    }
-}
