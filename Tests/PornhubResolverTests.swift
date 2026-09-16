@@ -42,6 +42,19 @@ final class PornhubResolverTests: XCTestCase {
         } catch VideoSaveError.captchaRequired { } catch { XCTFail("Unexpected error: \(error)") }
     }
 
+    func testPassiveCaptchaAssetsDoNotTriggerFalsePositive() async throws {
+        let session = makeSession(body: #"<script src="https://www.google.com/recaptcha/api.js"></script><script>const provider='h-captcha'; const cloudflare='cf-chl-widget';</script>var qualityItems_1 = [{"url":"https://cdn.example/1080.mp4","text":"1080p"}];"#)
+        defer { session.invalidateAndCancel() }
+        let result = try await PornhubResolver.resolve(page, using: session)
+        XCTAssertEqual(result.defaultURL.absoluteString, "https://cdn.example/1080.mp4")
+    }
+
+    func testChallengeURLStillFailsClosed() {
+        XCTAssertThrowsError(try MediaAccessPolicy.validatePage("Please wait", finalURL: URL(string: "https://www.pornhub.com/challenge?id=1"))) { error in
+            guard case VideoSaveError.captchaRequired = error else { return XCTFail("Unexpected error") }
+        }
+    }
+
     func testBlockedHTTPStatusesAreRejected() {
         for status in [401, 403, 429, 451] {
             let response = HTTPURLResponse(url: page, statusCode: status, httpVersion: nil, headerFields: nil)!
