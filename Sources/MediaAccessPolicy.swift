@@ -13,16 +13,13 @@ enum MediaAccessPolicy {
     }
 
     static func validatePage(_ html: String, finalURL: URL?) throws {
-        let lower = html.lowercased()
+        let visible = visibleText(from: html)
         let path = finalURL?.path.lowercased() ?? ""
         let query = finalURL?.query?.lowercased() ?? ""
 
-        // Pornhub can ship CAPTCHA/challenge wording and related JavaScript in a
-        // normal public video page. Do not treat that passive text as an active
-        // challenge when the same response already contains a concrete playable
-        // media reference. We still fail closed on an actual challenge URL or on
-        // challenge text when no playable media is present. Nothing here solves,
-        // submits, or bypasses a CAPTCHA.
+        // Many normal video pages preload CAPTCHA/Cloudflare JavaScript. Only
+        // visible challenge wording or an actual challenge URL counts as a CAPTCHA.
+        // This detects the gate; it never solves or bypasses it.
         let explicitChallengeText = [
             "verify you are human",
             "verify that you are human",
@@ -41,22 +38,12 @@ enum MediaAccessPolicy {
             query.contains("captcha=") ||
             query.contains("challenge=")
 
-        let hasMediaContainer = [
-            "qualityitems_",
-            "\"videourl\"",
-            "\"mediadefinitions\""
-        ].contains(where: lower.contains)
-        let hasMediaExtension = [".mp4", ".m3u8", ".m4v", ".mov"]
-            .contains(where: lower.contains)
-        let hasPlayableMediaReference = hasMediaContainer && hasMediaExtension
-
-        if challengeURL ||
-            (!hasPlayableMediaReference && explicitChallengeText.contains(where: lower.contains)) {
+        if challengeURL || explicitChallengeText.contains(where: visible.contains) {
             throw VideoSaveError.captchaRequired
         }
 
         if path.hasPrefix("/login") || path.hasPrefix("/auth") ||
-            ["login required", "log in to watch", "sign in to watch", "not available in your region", "not available in your country", "access denied", "premium members only", "this video is private"].contains(where: lower.contains) {
+            ["login required", "log in to watch", "sign in to watch", "not available in your region", "not available in your country", "access denied", "premium members only", "this video is private"].contains(where: visible.contains) {
             throw VideoSaveError.accessBlocked
         }
     }
@@ -68,5 +55,31 @@ enum MediaAccessPolicy {
         if text.contains("#EXT-X-KEY") || text.contains("#EXT-X-SESSION-KEY") {
             throw VideoSaveError.protectedStream
         }
+    }
+
+    private static func visibleText(from html: String) -> String {
+        var text = html
+        let removablePatterns = [
+            #"(?is)<!--.*?-->"#,
+            #"(?is)<script\b[^>]*>.*?</script>"#,
+            #"(?is)<style\b[^>]*>.*?</style>"#,
+            #"(?is)<noscript\b[^>]*>.*?</noscript>"#,
+            #"(?is)<template\b[^>]*>.*?</template>"#,
+            #"(?is)<[^>]+>"#
+        ]
+        for pattern in removablePatterns {
+            text = text.replacingOccurrences(of: pattern, with: " ", options: .regularExpression)
+        }
+        let entities: [String: String] = [
+            "&nbsp;": " ", "&amp;": "&", "&quot;": "\"",
+            "&#39;": "'", "&lt;": "<", "&gt;": ">"
+        ]
+        for (entity, value) in entities {
+            text = text.replacingOccurrences(of: entity, with: value, options: .caseInsensitive)
+        }
+        return text
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
     }
 }
