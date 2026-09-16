@@ -24,20 +24,22 @@ enum PornhubResolver {
     }()
 
     static func isPornhubPage(_ url: URL) -> Bool {
-        guard let host = url.host?.lowercased() else { return false }
+        guard ["http", "https"].contains(url.scheme?.lowercased() ?? ""),
+              let host = url.host?.lowercased() else { return false }
         let normalizedHost = host.hasPrefix("www.") ? String(host.dropFirst(4)) : host
         guard normalizedHost == "pornhub.com" || normalizedHost.hasSuffix(".pornhub.com") else {
             return false
         }
 
         let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
-        return url.path.lowercased().contains("view_video.php")
+        return url.path.lowercased() == "/view_video.php"
             && components?.queryItems?.contains(where: {
                 $0.name.lowercased() == "viewkey" && !($0.value ?? "").isEmpty
             }) == true
     }
 
-    static func resolve(_ pageURL: URL) async throws -> PornhubResolution {
+    static func resolve(_ pageURL: URL, using suppliedSession: URLSession? = nil) async throws -> PornhubResolution {
+        let networkSession = suppliedSession ?? session
         guard isPornhubPage(pageURL) else { throw VideoSaveError.unsupportedPage }
 
         let pageHeaders = [
@@ -47,19 +49,12 @@ enum PornhubResolver {
             "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1"
         ]
 
-        let (data, response) = try await requestData(url: pageURL, headers: pageHeaders)
-        guard let http = response as? HTTPURLResponse else { throw VideoSaveError.httpError }
-        if http.statusCode == 403 || http.statusCode == 429 { throw VideoSaveError.accessBlocked }
-        guard 200..<400 ~= http.statusCode else { throw VideoSaveError.httpError }
+        let (data, response) = try await requestData(url: pageURL, headers: pageHeaders, session: networkSession)
+        try MediaAccessPolicy.validateResponse(response)
         guard let html = String(data: data, encoding: .utf8) else { throw VideoSaveError.mediaNotFound }
-
-        let candidates = extractCandidates(from: html, baseURL: pageURL)
-        guard !candidates.isEmpty else {
-            if html.localizedCaseInsensitiveContains("captcha") || html.localizedCaseInsensitiveContains("verify you are human") {
-                throw VideoSaveError.captchaRequired
-            }
-            throw VideoSaveError.mediaNotFound
-        }
+        try MediaAccessPolicy.validatePage(html, finalURL: response.url)
+        let candidates = extractCandidates(from: html, baseURL: response.url ?? pageURL)
+        guard !candidates.isEmpty else { throw VideoSaveError.mediaNotFound }
 
         let sorted = candidates.sorted {
             if $0.quality != $1.quality { return $0.quality > $1.quality }
@@ -70,12 +65,12 @@ enum PornhubResolver {
         let mediaHeaders = ["Referer": pageURL.absoluteString, "Accept": "*/*", "User-Agent": pageHeaders["User-Agent"]!]
 
         if let hls = hlsCandidates.first {
-            let (playlistData, playlistResponse) = try await requestData(url: hls.url, headers: mediaHeaders)
-            guard (playlistResponse as? HTTPURLResponse)?.statusCode ?? 200 < 400,
-                  let playlist = String(data: playlistData, encoding: .utf8) else { throw VideoSaveError.httpError }
-            if playlist.contains("#EXT-X-KEY") || playlist.contains("#EXT-X-SESSION-KEY") { throw VideoSaveError.protectedStream }
+            let (playlistData, playlistResponse) = try await requestData(url: hls.url, headers: mediaHeaders, session: networkSession)
+            try MediaAccessPolicy.validateResponse(playlistResponse)
+            guard let playlist = String(data: playlistData, encoding: .utf8) else { throw VideoSaveError.mediaNotFound }
+            try MediaAccessPolicy.validatePlaylist(playlist)
 
-            let variants = try HLSParser.parseMasterPlaylist(text: playlist, baseURL: hls.url).sorted {
+            let variants = try HLSParser.parseMasterPlaylist(text: playlist, baseURL: playlistResponse.url ?? hls.url).sorted {
                 if $0.height != $1.height { return $0.height > $1.height }
                 return $0.bandwidth > $1.bandwidth
             }
@@ -96,7 +91,7 @@ enum PornhubResolver {
         )
     }
 
-    private static func requestData(url: URL, headers: [String: String]) async throws -> (Data, URLResponse) {
+    private static func requestData(url: URL, headers: [String: String], session: URLSession) async throws -> (Data, URLResponse) {
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         for (field, value) in headers { request.setValue(value, forHTTPHeaderField: field) }
@@ -168,7 +163,7 @@ enum PornhubResolver {
         for match in regex.matches(in: html, range: nsRange) {
             let offset = match.range.location + match.range.length
             guard offset < nsRange.length else { continue }
-            let start = html.index(html.startIndex, offsetBy: offset)
+            guard let start = Range(NSRange(location: offset, length: 0), in: html)?.lowerBound else { continue }
             guard let brace = html[start...].firstIndex(of: "{"), let object = balancedJSONObject(in: html, from: brace) else { continue }
             results.append(object)
         }
@@ -203,7 +198,11 @@ enum PornhubResolver {
             .replacingOccurrences(of: "&amp;", with: "&")
             .trimmingCharacters(in: .whitespacesAndNewlines)
         if let decoded = value.removingPercentEncoding, decoded.hasPrefix("http") { value = decoded }
-        return URL(string: value, relativeTo: baseURL)?.absoluteURL
+        guard let url = URL(string: value, relativeTo: baseURL)?.absoluteURL,
+              ["http", "https"].contains(url.scheme?.lowercased() ?? ""),
+              url.host != nil,
+              ["mp4", "mov", "m4v", "m3u8"].contains(url.pathExtension.lowercased()) else { return nil }
+        return url
     }
 
     private static func qualityNumber(_ value: Any?) -> Int? {

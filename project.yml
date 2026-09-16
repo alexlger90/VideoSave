@@ -30,3 +30,25 @@ targets:
         SWIFT_EMIT_LOC_STRINGS: YES
     info:
       path: Sources/Info.plist
+
+  VideoSaveTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - Tests
+    dependencies:
+      - target: VideoSave
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_FILE: ""
+        CODE_SIGNING_ALLOWED: NO
+
+schemes:
+  VideoSave:
+    build:
+      targets:
+        VideoSave: all
+    test:
+      targets:
+        - VideoSaveTests

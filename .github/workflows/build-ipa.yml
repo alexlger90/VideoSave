@@ -2,6 +2,9 @@ name: Build VideoSave IPA
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+  pull_request:
 
 jobs:
   build:
@@ -26,6 +29,25 @@ jobs:
 
       - name: Generate Xcode project
         run: xcodegen generate
+
+      - name: Test resolver and access policy
+        run: |
+          DEVICE_ID=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next(x["udid"] for group in d["devices"].values() for x in group if x["name"].startswith("iPhone")))')
+          xcodebuild test \
+            -project VideoSave.xcodeproj \
+            -scheme VideoSave \
+            -destination "platform=iOS Simulator,id=$DEVICE_ID" \
+            -parallel-testing-enabled NO \
+            -resultBundlePath TestResults.xcresult \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: VideoSave-TestResults
+          path: TestResults.xcresult
+          if-no-files-found: ignore
 
       - name: Build unsigned iPhone app
         run: |
